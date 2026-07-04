@@ -2,7 +2,7 @@
 
 Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
-**Project board:** [GitHub Project #4](https://github.com/users/iamkaranvalecha/projects/4)
+**Project board:** [GitHub Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1)
 
 ---
 

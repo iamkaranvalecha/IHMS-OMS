@@ -35,7 +35,7 @@ Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS
 
 | Rule | Scope |
 |------|-------|
-| [.cursor/rules/01-workflow.mdc](.cursor/rules/01-workflow.mdc) | Issues, branches, PRs, Project #4 |
+| [.cursor/rules/01-workflow.mdc](.cursor/rules/01-workflow.mdc) | Issues, branches, PRs, Project #5 |
 | [.cursor/rules/02-architecture.mdc](.cursor/rules/02-architecture.mdc) | Module boundaries, gateway-only upstream calls |
 | [.cursor/rules/03-quality.mdc](.cursor/rules/03-quality.mdc) | Testing pyramid, saga, observability |
 | [.cursor/rules/04-documentation.mdc](.cursor/rules/04-documentation.mdc) | Living docs, AI-USAGE, ROADMAP updates |

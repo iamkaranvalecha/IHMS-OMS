@@ -1,5 +1,5 @@
 ---
-description: Workflow — issues, branches, PRs, Project #4, git ownership
+description: Workflow — issues, branches, PRs, Project #5, git ownership
 globs:
 alwaysApply: true
 ---
@@ -17,7 +17,7 @@ Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.
 
 - **Never commit on `main` or `master`.** Create or checkout a feature branch first.
 - **Never push to `main` or `master`.** Push the feature branch and open a PR.
-- **Issue before code.** Create a GitHub issue on [Project #4](https://github.com/users/iamkaranvalecha/projects/4) *before* the first commit for new work. No PR without a linked issue.
+- **Issue before code.** Create a GitHub issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5) *before* the first commit for new work. No PR without a linked issue.
 - **"Commit and push"** means: commit on feature branch → push branch → open PR with `Closes #N`. It never means push to `main`.
 - **Exception:** push/merge to `main` only when the user explicitly says to push directly to main or merge without a PR.
 
@@ -43,7 +43,7 @@ Do not bundle KB-IHMS changes with orchestrator feature PRs unless explicitly co
    - Label: `integration/oms`
    - Template: `.github/ISSUE_TEMPLATE/integration-task.md`
    - Include: phase number, UC-ID, acceptance criteria, required test tiers
-3. Link the issue on [Project #4](https://github.com/users/iamkaranvalecha/projects/4).
+3. Link the issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5).
 4. Trivial fixes (typo, single-line doc) may skip issue — note in PR body.
 
 ### Issue title convention
@@ -172,7 +172,7 @@ Orchestrator PR and KB-IHMS doc PR may land in either order but both should refe
 
 ## Labels and project board
 
-Project board: https://github.com/users/iamkaranvalecha/projects/4
+Project board: https://github.com/users/iamkaranvalecha/projects/5
 
 This is the single source of truth for what to work on (from KB-IHMS `github-project.mdc`).
 
@@ -185,7 +185,7 @@ Priority order: P0, then P1, then P2.
 ### Before starting work
 
 ```bash
-gh project item-list 4 --owner iamkaranvalecha --format json
+gh project item-list 5 --owner iamkaranvalecha --format json
 ```
 
 - Pick the highest-priority item in "Ready" or "In progress". If none exist, ask the user before creating ad-hoc work.
@@ -195,7 +195,7 @@ gh project item-list 4 --owner iamkaranvalecha --format json
 ### Creating issues
 
 ```bash
-gh issue create --title "[Phase N] ..." --body "..." --project "KB-IHMS" \
+gh issue create --title "[Phase N] ..." --body "..." --project "IHMS-OMS" \
   --label "priority/p1,size/m,integration/oms"
 ```
 
@@ -221,7 +221,7 @@ KB-IHMS `.github/workflows/project-sync.yml` pattern (add to IHMS-OMS when ready
 
 Do not manually fight the workflow — set Status via board or rely on automation.
 
-**`PROJECT_PAT` secret:** User-owned Project #4 requires a **classic PAT** with `project`, `read:project`, `repo`, and `read:org` scopes. Fine-grained PATs cannot access user-owned projects. Until set, sync skips gracefully and CI stays green.
+**`PROJECT_PAT` secret:** User-owned Project #5 requires a **classic PAT** with `project`, `read:project`, `repo`, and `read:org` scopes. Fine-grained PATs cannot access user-owned projects. Until set, sync skips gracefully and CI stays green.
 
 ---
 
@@ -248,7 +248,7 @@ Production hotfix (post Phase 5):
 ## Pre-commit checklist (agents)
 
 1. On a feature branch (not `main`)
-2. Linked issue exists and is on Project #4
+2. Linked issue exists and is on Project #5
 3. `bash scripts/verify.sh` passes (ruff + unit + contract + component + integration)
 4. `cd frontend && npm test && npm run build` when frontend changed (Phase 4+)
 5. **[AI-USAGE.md](../AI-USAGE.md)** updated — see [04-documentation.mdc](04-documentation.mdc)

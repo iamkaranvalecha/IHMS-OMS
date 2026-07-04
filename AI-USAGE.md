@@ -53,9 +53,18 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - Updated AGENTS.md with KB-IHMS → orchestrator rule lineage table
 - Excluded `dotnet-style`, `mongodb` (IHMS-specific)
 
+### 2026-07-04 — Point project tracking to IHMS-OMS Project #5
+
+**User query:** Update PR with project https://github.com/users/iamkaranvalecha/projects/5/views/1
+
+**Actions:**
+- Replaced all Project #4 references with Project #5 across rules, ROADMAP, README, AGENTS.md
+- Updated `gh project item-list` and `--project "IHMS-OMS"` in workflow rule
+
 ## User queries archive
 
 | Date | Query summary |
 |------|---------------|
 | 2026-07-04 | IHMS-OMS project path + v4 integration plan |
 | 2026-07-04 | Merge KB-IHMS cursor rules into orchestrator 4-rule set |
+| 2026-07-04 | Update project board to Project #5 |
