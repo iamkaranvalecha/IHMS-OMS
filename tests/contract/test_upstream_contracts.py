@@ -134,6 +134,7 @@ async def test_ecops_create_order_request_shape(ecops_client: EcOpsClient) -> No
     sent = json.loads(request.content.decode())
     assert sent["customer_name"] == "Test Customer"
     assert sent["items"][0]["product_name"] == "WIDGET-001"
+    assert "client_reference" not in sent
     assert str(result.id) == order_id
 
 
@@ -145,3 +146,59 @@ async def test_ecops_list_orders_query_param(ecops_client: EcOpsClient) -> None:
     await ecops_client.list_orders(OBS, status=None)
 
     assert respx.calls[0].request.url.params.get("status") is None
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_ecops_find_order_by_client_reference(ecops_client: EcOpsClient) -> None:
+    order_id = str(uuid4())
+    respx.get("http://ecops.test/orders").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "id": order_id,
+                    "customer_name": "Test",
+                    "status": "PENDING",
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "updated_at": None,
+                    "items": [],
+                    "client_reference": "corr-find",
+                }
+            ],
+        )
+    )
+
+    result = await ecops_client.find_order_by_client_reference("corr-find", OBS)
+
+    assert result is not None
+    assert str(result.id) == order_id
+    assert respx.calls[0].request.url.params.get("client_ref") is None
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_ecops_find_order_by_client_reference_ignores_unmatched_orders(
+    ecops_client: EcOpsClient,
+) -> None:
+    order_id = str(uuid4())
+    respx.get("http://ecops.test/orders").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "id": order_id,
+                    "customer_name": "Test",
+                    "status": "PENDING",
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "updated_at": None,
+                    "items": [],
+                }
+            ],
+        )
+    )
+
+    result = await ecops_client.find_order_by_client_reference("corr-find", OBS)
+
+    assert result is None
+    assert respx.calls[0].request.url.params.get("client_ref") is None

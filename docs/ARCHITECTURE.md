@@ -82,4 +82,4 @@ Flow details live in dedicated files — not embedded here:
 
 ## Phase 1 status
 
-Scaffold only. Gateway clients, saga flows, and UI are stubbed for Phase 2–4.
+Gateway clients, saga flows, and UI: saga implemented in Phase 3; React UI Phase 4.

@@ -2,7 +2,7 @@
 
 **Use cases:** UC-3 (browse/add), UC-5 (confirm order)
 
-**Status:** Stub — finalize in Phase 3
+**Status:** Implemented (Phase 3)
 
 ## Actors
 

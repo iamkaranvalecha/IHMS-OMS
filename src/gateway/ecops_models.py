@@ -42,3 +42,4 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime | None
     items: list[OrderItemResponse]
+    client_reference: str | None = None

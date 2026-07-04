@@ -2,7 +2,7 @@
 
 **Use case:** UC-7 (hold expires before confirm)
 
-**Status:** Stub — finalize in Phase 3
+**Status:** Implemented (Phase 3)
 
 ## Flow
 

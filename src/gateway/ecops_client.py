@@ -64,14 +64,24 @@ class EcOpsClient:
         *,
         status: OrderStatus | None = None,
     ) -> list[OrderResponse]:
-        params = {"status": status.value} if status else None
+        params: dict[str, str] = {}
+        if status is not None:
+            params["status"] = status.value
         try:
             response = await self._client.get(
                 f"{self._base_url}/orders",
-                params=params,
+                params=params or None,
                 headers=self._auth_headers(headers),
             )
         except httpx.HTTPError as exc:
             raise map_transport_error(exc) from exc
         raise_for_ecops_response(response)
         return [OrderResponse.model_validate(item) for item in response.json()]
+
+    async def find_order_by_client_reference(
+        self,
+        client_reference: str,
+        headers: ObservabilityHeaders,
+    ) -> OrderResponse | None:
+        orders = await self.list_orders(headers)
+        return next((order for order in orders if order.client_reference == client_reference), None)
