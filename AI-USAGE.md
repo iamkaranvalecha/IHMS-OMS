@@ -80,6 +80,8 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 **User action needed:** Configure repo secret `PROJECT_PAT`; manually add #3, #4, PR #2 to Project #5 until PAT is set; add `Closes #4` to PR #2 description.
 
+**Update 2026-07-04:** `PROJECT_PAT` configured. Run **Sync project board** workflow (Actions → workflow_dispatch) after merging workflow files to `main`, or merge PR #2 to activate auto-sync.
+
 ## User queries archive
 
 | Date | Query summary |

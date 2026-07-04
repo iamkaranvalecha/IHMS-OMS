@@ -7,8 +7,12 @@ source "$SCRIPT_DIR/sync-project-fields.sh"
 
 PR_URL="$1"
 BRANCH="$2"
+PR_NUMBER="${3:-}"
 
 ISSUE_NUM="$(issue_number_from_branch "$BRANCH")"
+if [[ -z "$ISSUE_NUM" && -n "$PR_NUMBER" ]]; then
+  ISSUE_NUM="$(issue_number_from_pr "$PR_NUMBER")"
+fi
 LABELS=""
 if [[ -n "$ISSUE_NUM" ]]; then
   LABELS="$(labels_for_issue "$ISSUE_NUM")"

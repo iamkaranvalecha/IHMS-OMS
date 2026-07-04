@@ -34,6 +34,12 @@ issue_number_from_branch() {
   fi
 }
 
+issue_number_from_pr() {
+  local pr_number="$1"
+  gh pr view "$pr_number" --repo "$OWNER/$REPO" --json body -q '.body' 2>/dev/null \
+    | grep -oE '(Closes|Fixes|Resolves) #[0-9]+' | head -1 | grep -oE '[0-9]+' || true
+}
+
 labels_for_issue() {
   local issue_number="$1"
   gh issue view "$issue_number" --repo "$OWNER/$REPO" --json labels -q '.labels[].name' 2>/dev/null || true
