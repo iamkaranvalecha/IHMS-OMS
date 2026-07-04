@@ -9,14 +9,18 @@ When `POST /orders` times out, the order may have been created. Blind retry risk
 
 ## Decision
 
-Implement reconciliation query: look up order by correlation / idempotency key before compensating.
+Attempt reconciliation after a timeout, but only trust an order that carries a
+matching client reference in the EC-OPS response. The frozen EC-OPS API does not
+persist `client_reference` or enforce `Idempotency-Key`, so the orchestrator must
+not attach an unfiltered list result or retry `POST /orders` blindly.
 
 ## Consequences
 
-- `src/saga/reconciliation.py` handles unknown-outcome path.
-- EC-OPS list/filter or client reference field required (verify in Phase 2 contract tests).
+- `src/saga/steps/reconcile.py` handles the unknown-outcome path.
+- EC-OPS list/filter or client reference field is required for successful reconciliation.
+- Without a trusted match, the orchestrator compensates the hold and returns an ambiguous timeout error instead of risking duplicate orders.
 - Documented in [sequences/reconciliation.md](../sequences/reconciliation.md).
 
 ## Open questions
 
-- ~~Exact EC-OPS query API for idempotency lookup~~ — resolved: `GET /orders?client_ref={correlation_id}` with `client_reference` on order create (gateway contract in Phase 3).
+- Exact EC-OPS query API for idempotency lookup remains unavailable in the frozen upstream. A future additive EC-OPS contract could expose `client_reference` filtering or order-create idempotency.

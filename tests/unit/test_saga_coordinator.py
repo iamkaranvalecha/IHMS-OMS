@@ -16,7 +16,12 @@ from src.gateway.exceptions import (
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_models import HoldItemResponse, HoldResponse, HoldStatus
 from src.saga.coordinator import SagaCoordinator
-from src.saga.exceptions import HoldExpiredError, InvalidStateTransitionError, SessionNotFoundError
+from src.saga.exceptions import (
+    CompensationIncompleteError,
+    HoldExpiredError,
+    InvalidStateTransitionError,
+    SessionNotFoundError,
+)
 from src.saga.idempotency import InMemoryIdempotencyStore
 from src.session.models import CheckoutSession, SessionLineItem, SessionState
 from src.session.store import InMemorySessionStore, LockedSessionStore
@@ -196,6 +201,22 @@ async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: Observability
     assert result.session.state == SessionState.RECONCILED
     assert result.session.order_id == str(order_id)
     saga.ihms.release_hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_timeout_without_reconciled_order_does_not_retry_post(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    saga.ecops.create_order.side_effect = GatewayTimeoutError("timeout")
+    saga.ecops.find_order_by_client_reference.return_value = None
+
+    with pytest.raises(CompensationIncompleteError):
+        await saga.confirm(session.session_id, None, "idem-timeout", obs)
+
+    assert saga.ecops.create_order.await_count == 1
+    saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
 
 
 @pytest.mark.asyncio

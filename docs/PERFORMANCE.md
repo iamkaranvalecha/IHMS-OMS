@@ -8,7 +8,7 @@ Phase 1 policies. Update this document when timeout or retry values change.
 |-----------|---------|-------|
 | Idempotent GET (reconciliation query) | Up to 2 with backoff | Safe to repeat |
 | POST without idempotency key | **No blind retry** | Risk of duplicate side effects |
-| POST with idempotency key | 1 retry on timeout | Same key; reconcile if still unknown |
+| POST with idempotency key | **No blind retry unless upstream enforces idempotency** | Frozen EC-OPS ignores the header, so retry risks duplicates |
 
 ## Timeout policy (planned Phase 2)
 

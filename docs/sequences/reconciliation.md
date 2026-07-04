@@ -23,21 +23,22 @@ sequenceDiagram
   API->>OPS: POST /orders
   Note over API,OPS: timeout — no response
 
-  API->>OPS: GET /orders?client_ref={correlation_id}
-  alt Order found
+  API->>OPS: GET /orders
+  Note over API: only accept a returned order with matching client_reference
+  alt Matching order found
     OPS-->>API: order_id
     Note over API: Session → RECONCILED / CONFIRMED
-  else Order not found
-    OPS-->>API: empty
+  else Matching order not found
+    OPS-->>API: no trusted match
     API->>IHMS: DELETE /api/holds/{hold_id}
-    Note over API: COMPENSATED or retry with same idempotency key
+    Note over API: COMPENSATED; no blind POST retry
   end
 ```
 
 ## Decision rules
 
-1. **Found** → attach `order_id`, complete session; do not release hold if order references hold.
-2. **Not found** → safe to compensate OR retry `POST /orders` with same idempotency key.
+1. **Trusted match found** → attach `order_id`, complete session; do not release hold.
+2. **No trusted match** → compensate the hold and surface the ambiguous timeout.
 3. Log `step: reconcile` with all IDs for audit.
 
 See [ADR-008](../adr/ADR-008-reconciliation-timeout.md).

@@ -248,3 +248,57 @@ async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
     assert confirm.status_code == 200
     assert confirm.json()["state"] == "RECONCILED"
     assert confirm.json()["order_id"] == order_id
+
+
+@respx.mock
+async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -> None:
+    create = await client.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+
+    respx.post("http://ihms.test/api/holds").mock(
+        return_value=httpx.Response(201, json=_ihms_hold_response("hold-unmatched"))
+    )
+    await client.post(
+        f"/sessions/{session_id}/hold",
+        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
+    )
+
+    unrelated_order = str(uuid4())
+    order_route = respx.post("http://ecops.test/orders").mock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
+    respx.get("http://ihms.test/api/holds/hold-unmatched").mock(
+        return_value=httpx.Response(200, json=_ihms_hold_response("hold-unmatched"))
+    )
+    respx.get("http://ecops.test/orders").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "id": unrelated_order,
+                    "customer_name": "Someone Else",
+                    "status": "PENDING",
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "updated_at": None,
+                    "items": [],
+                }
+            ],
+        )
+    )
+    release = respx.delete("http://ihms.test/api/holds/hold-unmatched").mock(
+        return_value=httpx.Response(204)
+    )
+
+    confirm = await client.post(
+        f"/sessions/{session_id}/confirm",
+        json={},
+        headers={"Idempotency-Key": "idem-unmatched"},
+    )
+
+    assert confirm.status_code == 503
+    assert order_route.call_count == 1
+    assert release.called
+    get_resp = await client.get(f"/sessions/{session_id}")
+    body = get_resp.json()
+    assert body["state"] == "COMPENSATED"
+    assert body["order_id"] is None
