@@ -41,10 +41,34 @@ jobs:
             exit 0
           fi
           gh auth status
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            name=$(echo "$label" | jq -r '.name')
+            color=$(echo "$label" | jq -r '.color')
+            description=$(echo "$label" | jq -r '.description')
+            gh label create "$name" --color "$color" --description "$description" --force \
+              --repo "${{ github.repository }}"
+          done
           .github/scripts/sync-pr-opened.sh \
             "${{ github.event.pull_request.html_url }}" \
             "${{ github.head_ref }}" \
             "${{ github.event.pull_request.number }}"
+          for num in 3 4; do
+            .github/scripts/sync-issue-opened.sh "$num" || true
+          done
+          gh issue close 3 --repo "${{ github.repository }}" \
+            --comment "Phase 1 completed in PR #1." 2>/dev/null || true
+          ITEM3=$(gh project item-list 5 --owner iamkaranvalecha --format json --limit 200 \
+            | jq -r '.items[] | select(.content.number == 3 and .content.type == "Issue") | .id' | head -1)
+          if [[ -n "$ITEM3" ]]; then
+            gh project item-edit --id "$ITEM3" --project-id PVT_kwHOAKhJ184BcdYO \
+              --field-id PVTSSF_lAHOAKhJ184BcdYOzhXGCAQ --single-select-option-id 98236657 || true
+          fi
+          ITEM4=$(gh project item-list 5 --owner iamkaranvalecha --format json --limit 200 \
+            | jq -r '.items[] | select(.content.number == 4 and .content.type == "Issue") | .id' | head -1)
+          if [[ -n "$ITEM4" ]]; then
+            gh project item-edit --id "$ITEM4" --project-id PVT_kwHOAKhJ184BcdYO \
+              --field-id PVTSSF_lAHOAKhJ184BcdYOzhXGCAQ --single-select-option-id aba860b9 || true
+          fi
 
       - name: Mark project items Done after merge
         if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
