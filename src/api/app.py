@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.middleware import ObservabilityMiddleware
 from src.api.routes import catalog_router, health_router, sessions_router
@@ -36,10 +37,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="Checkout Orchestrator",
         description="BFF and saga layer for KB-IHMS + EC-OPS checkout integration",
-        version="0.3.0",
+        version="0.4.0",
         lifespan=lifespan,
     )
     app.state.settings = resolved
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.add_middleware(ObservabilityMiddleware)
     app.include_router(health_router)
     app.include_router(catalog_router)

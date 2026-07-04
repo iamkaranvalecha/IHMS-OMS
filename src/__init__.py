@@ -1,3 +1,3 @@
 """Checkout orchestrator — integrates KB-IHMS holds with EC-OPS orders."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
