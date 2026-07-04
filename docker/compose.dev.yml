@@ -25,7 +25,8 @@ services:
     ports:
       - "${UI_PORT:-5173}:5173"
     environment:
-      VITE_API_URL: http://localhost:${ORCHESTRATOR_PORT:-8000}
+      # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
+      VITE_API_URL: ""
     depends_on:
       - orchestrator
     networks:

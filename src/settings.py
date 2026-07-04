@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     catalog_path: Path = Path("catalog/products.json")
 
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
     ihms_connect_timeout: float = 2.0
     ihms_read_timeout: float = 5.0
     ecops_connect_timeout: float = 2.0

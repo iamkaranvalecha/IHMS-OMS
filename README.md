@@ -17,6 +17,15 @@ uvicorn src.main:app --reload --port 8000
 curl http://localhost:8000/health
 ```
 
+### React UI (Phase 4)
+
+```bash
+uvicorn src.main:app --reload --port 8000   # terminal 1
+cd frontend && cp .env.example .env && npm install && npm run dev   # terminal 2
+```
+
+Open http://localhost:5173
+
 ## Documentation map
 
 | Document | Purpose |
@@ -50,6 +59,4 @@ docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
 
 ## Status
 
-**Phase 1 — Scaffold** (see [ROADMAP.md](ROADMAP.md))
-
-Phase 2+ will add gateway clients, saga flows, React UI, and full-stack E2E.
+**Phase 4 — React UI** complete. See [ROADMAP.md](ROADMAP.md) for Phase 5 (full stack E2E).
