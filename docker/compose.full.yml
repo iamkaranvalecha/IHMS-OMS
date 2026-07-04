@@ -1,0 +1,49 @@
+# Full demo / E2E stack — IHMS + EC-OPS + orchestrator + UI (Phase 5).
+# Usage: docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    ports:
+      - "${ORCHESTRATOR_PORT:-8000}:8000"
+    environment:
+      IHMS_BASE_URL: http://ihms:8080
+      ECOPS_BASE_URL: http://ecops:8002
+      CATALOG_PATH: /app/catalog/products.json
+    depends_on:
+      - ihms
+      - ecops
+    networks:
+      - checkout-net
+
+  ui:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${UI_PORT:-5173}:5173"
+    environment:
+      VITE_API_URL: http://localhost:${ORCHESTRATOR_PORT:-8000}
+    depends_on:
+      - orchestrator
+    networks:
+      - checkout-net
+
+  # Phase 5: wire to published KB-IHMS and EC-OPS images or build contexts.
+  ihms:
+    image: ${IHMS_IMAGE:-ghcr.io/iamkaranvalecha/kb-ihms:latest}
+    profiles: ["full"]
+    ports:
+      - "8080:8080"
+    networks:
+      - checkout-net
+
+  ecops:
+    image: ${ECOPS_IMAGE:-ghcr.io/iamkaranvalecha/ec-ops:latest}
+    profiles: ["full"]
+    ports:
+      - "8002:8002"
+    networks:
+      - checkout-net

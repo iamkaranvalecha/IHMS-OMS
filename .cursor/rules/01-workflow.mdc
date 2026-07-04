@@ -1,0 +1,256 @@
+---
+description: Workflow — issues, branches, PRs, Project #5, git ownership
+globs:
+alwaysApply: true
+---
+
+# 01 — Workflow
+
+This rule governs how work enters and exits the checkout-orchestrator repo (IHMS-OMS).
+Merged from KB-IHMS [`git-workflow.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/git-workflow.mdc), [`github-project.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/github-project.mdc), and [`oms-integration.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/oms-integration.mdc) (orchestrator-side).
+
+Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.md) for current phase.
+
+---
+
+## Hard rules (from KB-IHMS git-workflow)
+
+- **Never commit on `main` or `master`.** Create or checkout a feature branch first.
+- **Never push to `main` or `master`.** Push the feature branch and open a PR.
+- **Issue before code.** Create a GitHub issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1) *before* the first commit for new work. No PR without a linked issue.
+- **"Commit and push"** means: commit on feature branch → push branch → open PR with `Closes #N`. It never means push to `main`.
+- **Exception:** push/merge to `main` only when the user explicitly says to push directly to main or merge without a PR.
+
+---
+
+## Repository scope
+
+| Repo | Agent may change? |
+|------|-------------------|
+| IHMS-OMS (this repo) | Yes — all integration work |
+| KB-IHMS | Docs/rules only — cross-repo PR, no assignment code |
+| EC-OPS | Never — frozen assignment |
+
+When KB-IHMS docs need updating, open a separate issue and PR in that repo.
+Do not bundle KB-IHMS changes with orchestrator feature PRs unless explicitly coordinated.
+
+---
+
+## Issue before code
+
+1. Check [ROADMAP.md](../ROADMAP.md) for the active phase.
+2. Open a GitHub Issue before non-trivial work:
+   - Label: `integration/oms`
+   - Template: `.github/ISSUE_TEMPLATE/integration-task.md`
+   - Include: phase number, UC-ID, acceptance criteria, required test tiers
+3. Link the issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1).
+4. Trivial fixes (typo, single-line doc) may skip issue — note in PR body.
+
+### Issue title convention
+
+```
+[Phase N] Short description (UC-X)
+```
+
+Examples:
+- `[Phase 1] Scaffold checkout-orchestrator v4`
+- `[Phase 2] IhmsClient with observability headers (UC-3)`
+- `[Phase 3] Reconciliation after order timeout`
+
+---
+
+## Branching
+
+### Branch naming
+
+```
+cursor/{issue-number}-{short-description}-bf51
+```
+
+Examples:
+- `cursor/1-orchestrator-scaffold-bf51`
+- `cursor/12-gateway-ihms-client-bf51`
+
+Use lowercase and hyphens. The `-bf51` suffix is required for cloud agent branches.
+
+### Rules
+
+- **Never push directly to `main`.**
+- One issue per branch unless issues are explicitly merged by maintainer.
+- Rebase or merge main before opening PR if branch is stale.
+- Delete branch after merge (maintainer or agent on request).
+
+---
+
+## Pull requests
+
+### Required PR elements
+
+1. Title references phase/issue: `[Phase N] Description`
+2. Body includes `Closes #N` (or `Closes #N, #M` if multi-issue — rare)
+3. Verification section with `scripts/verify.sh` output summary
+4. Documentation checklist from `.github/pull_request_template.md`
+5. [AI-USAGE.md](../AI-USAGE.md) updated in the same PR
+
+### PR review gates
+
+| Gate | Requirement |
+|------|-------------|
+| CI | `.github/workflows/ci.yml` green |
+| verify.sh | Same command locally: `bash scripts/verify.sh` |
+| Upstream | Confirm KB-IHMS and EC-OPS untouched (or docs-only PR linked) |
+| Docs | Living doc triggers per 04-documentation.mdc |
+
+### Draft PRs
+
+Use draft PRs for work-in-progress that needs early feedback.
+Mark ready for review only when verify.sh passes.
+
+---
+
+## Git ownership
+
+- **User owns git operations** on their machine — merge, release tags, branch protection.
+- Agent may: create branch, commit, push feature branch, open/update PR.
+- Agent must not: force-push main, delete protected branches, merge without user approval unless explicitly instructed.
+
+---
+
+## Commit messages
+
+Use clear, descriptive commits:
+
+```
+Phase 1: scaffold gateway module stubs and contract test layout
+
+- Add src/gateway/ package
+- Add tests/contract/test_ihms_wire_format.py stub
+- Update ROADMAP Phase 1 checklist
+```
+
+Imperative mood, complete sentences in body, reference issue when helpful.
+
+---
+
+## OMS integration phase gates (v4 ROADMAP)
+
+Aligned with KB-IHMS `oms-integration.mdc` — orchestrator owns delivery; IHMS/EC-OPS frozen.
+
+| Phase | Goal | Gate before next phase |
+|-------|------|------------------------|
+| 0 | Baseline lock | KB-IHMS green; EC-OPS noted; no upstream code changes |
+| 1 | Scaffold | `verify.sh` green; DECISION-MATRIX; 4 rules; ROADMAP Phase 1 |
+| 2 | Gateway + session + catalog | IhmsClient, EcOpsClient; contract + component tests |
+| 3 | Saga + flows | place-hold, confirm, cancel, compensate, reconciliation |
+| 4 | React UI | Orchestrator API only; optional dev correlation panel |
+| 5 | Full stack + E2E | compose.full.yml; all FAILURE-SCENARIOS rows tested |
+
+Append learnings to [ROADMAP.md](../ROADMAP.md) and [AI-USAGE.md](../AI-USAGE.md) after each gate — not to KB-IHMS unless docs-only cross-repo PR.
+
+### Integration principles (binding)
+
+- **IHMS owns hold lifecycle** — stock deduction, expiry, release, events. Orchestrator coordinates checkout; it does not reimplement hold rules.
+- **Contract-first** — integrate via IHMS REST (`POST/GET/DELETE /api/holds`) and optionally RabbitMQ events in Phase 5.
+- **Adapter boundary** — all upstream HTTP in `src/gateway/` only; no OMS/IHMS types leaking into UI.
+- **Additive upstream changes** — none in frozen repos; orchestrator adapts to published contracts.
+- **Quality bar** — `bash scripts/verify.sh` must pass before the next phase starts.
+
+---
+
+## Cross-repo workflow (KB-IHMS docs)
+
+For `docs/OMS-INTEGRATION.md` and `oms-integration.mdc` updates:
+
+1. Separate issue in KB-IHMS repo
+2. Branch in KB-IHMS (user naming convention)
+3. Links only — no duplicate ADR bodies in KB-IHMS
+4. Point to orchestrator: DECISION-MATRIX, sequences/, AI-USAGE, 4-rule set
+
+Orchestrator PR and KB-IHMS doc PR may land in either order but both should reference the integration milestone.
+
+---
+
+## Labels and project board
+
+Project board: https://github.com/users/iamkaranvalecha/projects/5/views/1
+
+This is the single source of truth for what to work on (from KB-IHMS `github-project.mdc`).
+
+### Status columns (use exactly)
+
+`Backlog` → `Ready` → `In progress` → `In review` → `Done`
+
+Priority order: P0, then P1, then P2.
+
+### Before starting work
+
+```bash
+gh project item-list 5 --owner iamkaranvalecha --format json
+```
+
+- Pick the highest-priority item in "Ready" or "In progress". If none exist, ask the user before creating ad-hoc work.
+- Read linked issues for acceptance criteria before writing code.
+- Scope branches, commits, and PRs to one project item.
+
+### Creating issues
+
+```bash
+gh issue create --title "[Phase N] ..." --body "..." --project "IHMS-OMS" \
+  --label "priority/p1,size/m,integration/oms"
+```
+
+Or use `.github/ISSUE_TEMPLATE/integration-task.md`.
+
+| Label | Use |
+|-------|-----|
+| `integration/oms` | All orchestrator integration work (required) |
+| `priority/p0` … `priority/p2` | Priority |
+| `size/xs` … `size/xl` | Effort |
+| `area/backend`, `area/frontend`, `area/docs`, `area/infra` | Scope |
+| `phase-1` … `phase-5` | Optional phase filter |
+| `documentation` | Docs-only changes |
+| `blocked` | Waiting on upstream or user decision |
+
+### Project automation
+
+KB-IHMS `.github/workflows/project-sync.yml` pattern (add to IHMS-OMS when ready):
+
+- **Issues opened/labeled** → add to project, Status = Backlog
+- **PR opened** → Status = In review (branch `cursor/{N}-*`)
+- **PR merged** → Status = Done on PR and linked issue
+
+Do not manually fight the workflow — set Status via board or rely on automation.
+
+**`PROJECT_PAT` secret:** User-owned Project #5 requires a **classic PAT** with `project`, `read:project`, `repo`, and `read:org` scopes. Fine-grained PATs cannot access user-owned projects. Until set, sync skips gracefully and CI stays green.
+
+---
+
+## Emergency / hotfix
+
+Production hotfix (post Phase 5):
+
+1. Issue with `hotfix` label
+2. Branch from main
+3. Minimal fix + regression test
+4. verify.sh + targeted e2e if flow touched
+5. Fast-track review — still requires AI-USAGE update
+
+---
+
+## What this rule does not cover
+
+- Module boundaries → [02-architecture.mdc](02-architecture.mdc)
+- Testing and saga → [03-quality.mdc](03-quality.mdc)
+- Living docs triggers → [04-documentation.mdc](04-documentation.mdc)
+
+---
+
+## Pre-commit checklist (agents)
+
+1. On a feature branch (not `main`)
+2. Linked issue exists and is on Project #5
+3. `bash scripts/verify.sh` passes (ruff + unit + contract + component + integration)
+4. `cd frontend && npm test && npm run build` when frontend changed (Phase 4+)
+5. **[AI-USAGE.md](../AI-USAGE.md)** updated — see [04-documentation.mdc](04-documentation.mdc)
+
+---

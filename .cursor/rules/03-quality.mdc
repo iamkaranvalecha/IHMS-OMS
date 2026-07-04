@@ -1,0 +1,346 @@
+---
+description: Quality — testing pyramid, verify.sh, saga, idempotency, observability, reconciliation
+globs:
+  - src/**
+  - tests/**
+  - scripts/**
+alwaysApply: false
+---
+
+# 03 — Quality
+
+Testing, saga correctness, observability, and performance policies.
+Merged from KB-IHMS [`testing.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/testing.mdc), [`api-errors.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/api-errors.mdc), and [`http-requests.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/http-requests.mdc) (adapted for Python/pytest).
+
+Performance detail: [docs/PERFORMANCE.md](../docs/PERFORMANCE.md).
+Failure matrix: [docs/FAILURE-SCENARIOS.md](../docs/FAILURE-SCENARIOS.md).
+
+---
+
+## Verification command
+
+```bash
+bash scripts/verify.sh
+```
+
+Runs in order:
+1. `ruff check src tests`
+2. `pytest tests/unit`
+3. `pytest tests/contract`
+4. `pytest tests/component`
+5. `pytest tests/integration`
+6. `pytest tests/e2e` — only when `STACK=1`
+
+**Local must match CI.** Paste verify.sh summary in every PR.
+
+---
+
+## Orchestrator API errors (RFC 7807)
+
+From KB-IHMS `api-errors.mdc` — apply to **this repo's** FastAPI routes:
+
+- Every non-2xx response body is RFC 7807 ProblemDetails (`application/problem+json`). Never bare status codes; never 200 with error payload.
+- Route handlers validate input, delegate to one checkout/saga method, map domain result to response. No business logic in routes.
+
+| Status | Orchestrator use |
+|--------|------------------|
+| 201 | Session created, hold placed, order confirmed |
+| 404 | Session/hold not found |
+| 409 | Hold expired, confirm blocked, conflict state |
+| 422 | Validation failure (empty cart, invalid quantity) |
+| 502/503 | Upstream unavailable (after retries exhausted) |
+| 500 | Unexpected exception only |
+
+Include `correlation_id` in ProblemDetails `extensions` when available.
+
+---
+
+## Upstream contract tests (KB-IHMS)
+
+Gateway contract tests must assert IHMS wire behaviour per KB-IHMS `api-errors.mdc`:
+
+- POST `/api/holds` → 201 + hold body; 409 insufficient stock; 422 validation
+- GET `/api/holds/{id}` → 200 active hold; 404 missing; 409 expired
+- DELETE `/api/holds/{id}` → 204 release; 409 already released
+- Enum/status fields: assert JSON shape matches IHMS Contracts (string status, not numeric)
+
+EC-OPS contract tests: POST `/orders` 201, 422 validation, auth Bearer header shape.
+
+---
+
+## Manual HTTP verification (`http/`)
+
+From KB-IHMS `http-requests.mdc` — add when Phase 2+ endpoints land:
+
+```
+http/
+  http-client.env.json   # baseUrl per environment
+  health.http
+  sessions.http          # checkout flow
+  upstream-smoke.http    # optional IHMS/EC-OPS direct checks in full stack
+```
+
+- Use `{{baseUrl}}` from env json; never hardcode URLs.
+- Name requests with `# @name createSession` for chained variables.
+- Document expected status in comments above each request.
+- At least one happy path + one error path per endpoint.
+- `.http` files complement pytest — **never replace** automated tests; CI runs pytest only.
+
+---
+
+## Testing pyramid
+
+```
+        e2e          ← compose.full.yml, real or containerized upstreams
+     integration     ← full FastAPI app, mocked gateway
+     component       ← saga + session + catalog wired, gateway mocked
+     contract        ← IHMS/EC-OPS wire format assertions
+     unit            ← pure logic, saga steps isolated
+```
+
+### Directory layout
+
+```
+tests/
+  unit/           # Pure functions, saga step logic with mocks
+  contract/       # Request/response JSON shape vs upstream OpenAPI/docs
+  component/      # Multiple src modules, no real HTTP upstream
+  integration/    # ASGI client against create_app()
+  e2e/            # @pytest.mark.e2e — STACK=1 only
+```
+
+### When to add which tier
+
+| Change | Required tests |
+|--------|----------------|
+| Saga step logic | unit |
+| Gateway request/response format | contract |
+| Checkout flow wiring | component |
+| New API route | integration |
+| Full happy/failure path | e2e (Phase 5) |
+
+### Component tests (required)
+
+Component tier is **not optional** — it catches wiring bugs between saga, session, and catalog without spinning up upstreams.
+
+Example pattern (Phase 2+):
+
+```python
+async def test_confirm_compensates_on_order_failure(mock_gateway, session_store):
+    # Wire real saga + session + catalog; gateway returns 500 on create_order
+    ...
+    assert session.state == "COMPENSATED"
+    mock_gateway.release_hold.assert_awaited_once()
+```
+
+---
+
+## Saga rules
+
+### Happy path
+
+1. Resolve products via CatalogProvider
+2. Place hold via gateway → IHMS
+3. Create order via gateway → EC-OPS
+4. Update session → CONFIRMED
+
+### Compensation (mandatory)
+
+When EC-OPS returns 4xx/5xx after successful hold:
+
+1. Call gateway.release_hold(hold_id)
+2. Session → COMPENSATED
+3. Return error to client with correlation_id
+
+Never leave orphaned holds. See [sequences/compensation.md](../docs/sequences/compensation.md).
+
+### Idempotency
+
+- Confirm endpoint accepts `Idempotency-Key` header
+- Store `(session_id, key) → response` in idempotency store
+- Duplicate confirm returns cached response without re-calling upstreams
+
+### Reconciliation
+
+When `create_order` times out:
+
+1. Do **not** assume failure
+2. Query EC-OPS by correlation / client reference / idempotency key
+3. Found → complete session
+4. Not found → compensate or retry with same key
+
+See [sequences/reconciliation.md](../docs/sequences/reconciliation.md), [ADR-008](../docs/adr/ADR-008-reconciliation-timeout.md).
+
+---
+
+## FAILURE-SCENARIOS coverage
+
+Every row in [FAILURE-SCENARIOS.md](../docs/FAILURE-SCENARIOS.md) needs tests by Phase 3 (integration) and Phase 5 (e2e where applicable):
+
+| Scenario | Min test tier by Phase 3 |
+|----------|--------------------------|
+| Hold fails | integration |
+| Order fails after hold | integration + component |
+| Hold expires | integration |
+| Duplicate confirm | integration |
+| Timeout reconciliation | integration |
+| Upstream unavailable | integration |
+
+Do not merge flow changes without updating the matrix row and sequence doc.
+
+---
+
+## Observability in tests
+
+Integration tests should assert observability headers:
+
+```python
+assert response.headers["X-Request-ID"]
+assert response.headers["X-Correlation-ID"]
+assert "trace_id" in response.json()
+```
+
+Gateway contract tests (Phase 2) assert outbound headers on mocked transport.
+
+Structured log fields to verify in critical path tests (when log capture added):
+
+```json
+{ "request_id", "correlation_id", "trace_id", "hold_id", "order_id", "step" }
+```
+
+See [docs/OBSERVABILITY.md](../docs/OBSERVABILITY.md).
+
+---
+
+## PERFORMANCE policies
+
+### Retry
+
+| Operation | Policy |
+|-----------|--------|
+| GET (reconciliation) | Up to 2 retries with backoff |
+| POST without idempotency | No blind retry |
+| POST with idempotency + timeout | 1 retry, then reconcile |
+
+### Timeouts (initial — tune in Phase 2)
+
+| Upstream | Connect | Read |
+|----------|---------|------|
+| IHMS | 2s | 5s |
+| EC-OPS | 2s | 10s |
+
+Document changes in PERFORMANCE.md when values change.
+
+### Connection pooling
+
+- One `httpx.AsyncClient` per upstream in app lifespan
+- Never create new client per request
+
+### Async
+
+- Use `async def` for I/O bound route handlers and gateway methods
+- No blocking calls in request path
+
+---
+
+## Lint
+
+```bash
+ruff check src tests
+```
+
+CI runs ruff before pytest. Fix lint before pushing.
+
+Config: `pyproject.toml` — target Python 3.12, line length 100.
+
+---
+
+## CI behaviour
+
+`.github/workflows/ci.yml`:
+
+- **verify job**: every PR and push to main
+- **e2e job**: workflow_dispatch or nightly on main (`STACK=1`, continue-on-error until Phase 5)
+
+---
+
+## Test naming and structure
+
+From KB-IHMS `testing.mdc`, adapted for pytest:
+
+- **Mock at gateway boundary** — tests pass with no IHMS, EC-OPS, or Redis running (except e2e).
+- Structure: Arrange / Act / Assert. No shared mutable state — fresh mocks per test.
+- Naming: `test_{method}_{scenario}_{expected}` (example: `test_confirm_order_fails_compensates_hold`).
+
+```python
+# unit
+def test_idempotency_returns_cached_response_when_key_reused(): ...
+
+# contract
+def test_ihms_place_hold_request_matches_expected_json_shape(): ...
+
+# component
+async def test_saga_compensates_when_ecops_returns_500(): ...
+
+# integration
+async def test_post_confirm_returns_201_with_order_id(): ...
+
+# e2e
+@pytest.mark.e2e
+async def test_full_checkout_happy_path(): ...
+```
+
+### Minimum saga coverage (Phase 3+)
+
+- Hold fails early (409/404) — no hold on session
+- Happy path confirm
+- Order fails after hold → compensation
+- Hold expired before confirm
+- Duplicate confirm with idempotency key
+- Reconciliation after order timeout
+
+Use `httpx` ASGITransport for integration; `respx` or mock gateway for component.
+
+---
+
+## Mocking guidelines
+
+| Layer | Mock |
+|-------|------|
+| unit | Mock everything external |
+| contract | Mock transport; assert wire format |
+| component | Mock gateway module boundary |
+| integration | Mock gateway OR use respx/httpx mock |
+| e2e | Real services in compose |
+
+Prefer mocking at **gateway boundary** over mocking httpx deep inside saga.
+
+---
+
+## Quality gate before PR
+
+- [ ] `bash scripts/verify.sh` green
+- [ ] New code has appropriate test tier
+- [ ] FAILURE-SCENARIOS row covered if flow changed
+- [ ] Saga compensation path tested for any new write to EC-OPS
+- [ ] Idempotency tested for confirm
+- [ ] PERFORMANCE.md updated if timeout/retry changed
+- [ ] No `@pytest.mark.e2e` tests run in default verify (unless STACK=1)
+
+---
+
+## Anti-patterns
+
+- Skipping component tier ("integration is enough")
+- Testing saga logic only through HTTP — also unit test steps
+- Blind retry on POST /orders without idempotency key
+- Asserting exact UUID values — assert presence/format instead
+- Real calls to IHMS/EC-OPS in unit/contract/component/integration tests
+
+---
+
+## Related rules
+
+- Architecture boundaries: [02-architecture.mdc](02-architecture.mdc)
+- Doc triggers: [04-documentation.mdc](04-documentation.mdc)
+- Workflow/PR: [01-workflow.mdc](01-workflow.mdc)

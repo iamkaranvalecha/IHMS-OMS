@@ -1,0 +1,14 @@
+# Shared networks, volumes, and environment anchors for layered compose files.
+
+networks:
+  checkout-net:
+    driver: bridge
+
+x-orchestrator-env: &orchestrator-env
+  IHMS_BASE_URL: ${IHMS_BASE_URL:-http://localhost:8080}
+  ECOPS_BASE_URL: ${ECOPS_BASE_URL:-http://localhost:8002}
+  CATALOG_PATH: ${CATALOG_PATH:-/app/catalog/products.json}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+volumes:
+  catalog-data:

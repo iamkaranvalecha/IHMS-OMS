@@ -1,0 +1,285 @@
+---
+description: Architecture — module layout, dependency rules, frozen upstreams, CatalogProvider
+globs:
+  - src/**
+  - frontend/**
+  - docs/**
+alwaysApply: false
+---
+
+# 02 — Architecture
+
+Enforces module boundaries for checkout-orchestrator.
+Merged from KB-IHMS [`architecture.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/architecture.mdc), [`oms-integration.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/oms-integration.mdc), [`hold-lifecycle.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/hold-lifecycle.mdc), [`caching-events.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/caching-events.mdc), and [`frontend.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/frontend.mdc).
+
+Canonical decisions: [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
+
+---
+
+## Three-repo ecosystem
+
+```
+┌─────────────────┐     ┌──────────────────────┐     ┌─────────────┐
+│   KB-IHMS       │     │  checkout-orchestrator│     │   EC-OPS    │
+│   (.NET)        │◄────│  (FastAPI + React)    │────►│  (FastAPI)  │
+│   Holds         │     │  THIS REPO            │     │  Orders     │
+└─────────────────┘     └──────────────────────┘     └─────────────┘
+       FROZEN                    ACTIVE                    FROZEN
+```
+
+- **KB-IHMS**: inventory hold authority — `POST/DELETE /api/holds`
+- **EC-OPS**: order lifecycle — `POST /orders`, status transitions
+- **Orchestrator**: all integration — saga, catalog, BFF, UI
+
+Never add integration logic to frozen repos. Never call upstreams from UI.
+
+### Integration boundary (from KB-IHMS architecture.mdc)
+
+- External systems integrate via **published API contracts** and **RabbitMQ events** — not by referencing IHMS Domain entities.
+- Orchestrator is the **OMS-side adapter**: HTTP clients and (Phase 5) event consumers live here only.
+- Do not add IHMS/EC-OPS project references or upstream-specific logic outside `src/gateway/`.
+- Gateway maps wire DTOs to orchestrator domain types — saga never imports upstream response shapes directly.
+
+---
+
+## Module layout
+
+```
+src/
+  api/           # FastAPI app, routers, ObservabilityMiddleware
+  checkout/      # Workflow entry: create session, hold, confirm, abandon
+  catalog/       # CatalogProvider protocol, JsonCatalogProvider
+  gateway/       # IhmsClient, EcOpsClient — ONLY upstream HTTP
+  session/       # CheckoutSession model + in-memory store (Phase 1–3)
+  saga/          # Coordinator, steps, compensation, idempotency, reconciliation
+```
+
+```
+frontend/        # React — orchestrator API only
+catalog/         # products.json — SKU mapping data
+tests/           # unit, contract, component, integration, e2e
+docs/            # living architecture documentation
+```
+
+---
+
+## Dependency rule (strict)
+
+```
+api → checkout → saga + session + catalog → gateway
+```
+
+### Allowed imports
+
+| Module | May import |
+|--------|------------|
+| `api` | `checkout`, shared types, settings |
+| `checkout` | `saga`, `session`, `catalog` |
+| `saga` | `gateway`, `session`, `catalog` |
+| `catalog` | stdlib, pydantic — **not** gateway |
+| `gateway` | httpx, pydantic, settings — **not** saga/checkout |
+| `session` | pydantic — **not** gateway |
+
+### Forbidden
+
+- `api` importing `gateway` directly (must go through `checkout`)
+- `frontend` calling IHMS or EC-OPS URLs
+- `catalog` making HTTP calls
+- Circular imports between `saga` and `checkout`
+
+If tempted to import gateway from api for convenience — add a checkout service method instead.
+
+---
+
+## Gateway — sole upstream boundary
+
+All HTTP to KB-IHMS and EC-OPS lives in `src/gateway/`:
+
+```python
+# gateway/ihms_client.py — Phase 2
+class IhmsClient:
+    async def place_hold(self, product_id: str, qty: int, headers: ObservabilityHeaders) -> HoldResponse: ...
+    async def release_hold(self, hold_id: str, headers: ObservabilityHeaders) -> None: ...
+
+# gateway/ecops_client.py — Phase 2
+class EcOpsClient:
+    async def create_order(self, payload: OrderRequest, headers: ObservabilityHeaders) -> OrderResponse: ...
+    async def find_order_by_reference(self, ref: str, headers: ObservabilityHeaders) -> OrderResponse | None: ...
+```
+
+### Gateway responsibilities
+
+- Base URL from settings / environment
+- httpx AsyncClient lifecycle (shared pool — see PERFORMANCE.md)
+- Forward X-Request-ID, X-Correlation-ID, X-Trace-ID
+- Map HTTP errors to domain exceptions for saga
+- **No business logic** — no saga state, no catalog mapping
+
+### KB-IHMS hold lifecycle (consumer contract)
+
+From KB-IHMS `hold-lifecycle.mdc` — gateway and saga must respect these semantics:
+
+- Hold states: **Active**, **Released**, **Expired** only.
+- Expiry detected on IHMS read — expired hold returns conflict (HTTP **409**).
+- Missing hold or product → **404**; insufficient stock / already released / expired → **409**; validation → **422**.
+- Multi-item hold: IHMS restores partial deductions on failure — orchestrator should not assume partial holds exist.
+- **Never reimplement expiry or restore logic** in orchestrator — delegate to IHMS API.
+
+IHMS endpoints (gateway targets):
+
+| Method | Path | Success | Error statuses |
+|--------|------|---------|----------------|
+| POST | `/api/holds` | 201 | 404, 409, 422 |
+| GET | `/api/holds/{holdId}` | 200 | 404, 409 (expired) |
+| DELETE | `/api/holds/{holdId}` | 204 | 404, 409 |
+| GET | `/api/inventory` | 200 | — |
+
+Non-2xx IHMS bodies are RFC 7807 ProblemDetails — parse `detail` for logging, not for business branching beyond status code.
+
+---
+
+## CatalogProvider — anti-corruption layer
+
+Mapping between orchestrator SKUs and upstream identifiers stays in `src/catalog/`.
+
+```python
+class CatalogProduct(BaseModel):
+    sku: str
+    ihms_product_id: str
+    ecops_item_code: str
+    ...
+```
+
+- Data file: `catalog/products.json`
+- Protocol: `CatalogProvider` for test doubles
+- Implementation: `JsonCatalogProvider`
+
+**Rule:** EC-OPS order lines use `ecops_item_code`; IHMS holds use `ihms_product_id`.
+Saga/checkout resolves via catalog — never hardcode upstream IDs in saga steps.
+
+See [ADR-002](../docs/adr/ADR-002-catalog-provider.md), [ADR-003](../docs/adr/ADR-003-mapping-not-in-upstreams.md).
+
+---
+
+## Saga placement
+
+All distributed workflow logic in `src/saga/`:
+
+- `coordinator.py` — orchestrates steps
+- `steps/` — place_hold, create_order, compensate, reconcile
+- `idempotency.py` — confirm deduplication store
+- `exceptions.py` — domain errors for api layer
+
+Compensation is mandatory when order fails after hold.
+Reconciliation required after ambiguous POST /orders timeout.
+
+Do not implement saga logic in `api/routes.py` — routes delegate to `checkout` → `saga`.
+
+---
+
+## Session model
+
+`CheckoutSession` fields (Phase 2+):
+
+- `session_id`, `correlation_id`, `state`
+- `hold_id`, `order_id` (optional, set as flow progresses)
+- `idempotency_key` cache for confirm
+- `expires_at` from IHMS hold response
+
+Storage: in-memory dict Phase 1–3. Redis path documented in ADR-007 — not required now.
+
+---
+
+## API layer
+
+`src/api/` owns:
+
+- FastAPI app factory (`create_app`)
+- `ObservabilityMiddleware` — Request/Correlation/Trace IDs
+- Routers that delegate to checkout services
+- HTTP status mapping from domain exceptions
+- **No direct httpx calls**
+
+Health endpoint pattern (Phase 1):
+
+```python
+@health_router.get("/health")
+async def health(request: Request) -> dict: ...
+```
+
+---
+
+## Frontend boundary
+
+From KB-IHMS `frontend.mdc`, adapted for orchestrator UI (Phase 4):
+
+- TypeScript strict mode. Never use `any` — type every orchestrator API response.
+- All server state through **TanStack Query**. No raw `fetch` in components.
+- Normalize API responses at `frontend/src/api/` client boundary — components never parse raw wire JSON.
+- Base URL from `import.meta.env.VITE_API_URL` — **never** hardcode orchestrator, IHMS, or EC-OPS URLs.
+- **Orchestrator API only** — never call IHMS or EC-OPS from React.
+- Loading + error states required; surface ProblemDetails `detail` on errors.
+- After confirm/cancel mutations, invalidate session and catalog queries.
+- Cancel/abandon requires confirmation step before mutation.
+- Vitest tests for normalize helpers and critical render paths; run `npm test` before PR when frontend touched.
+- Optional dev panel: display `correlation_id` and `trace_id` from API responses.
+
+---
+
+## Docker compose layering
+
+Do not create a monolithic `docker-compose.yml`. Use layered files:
+
+```
+docker/compose.base.yml   # networks, anchors
+docker/compose.dev.yml    # orchestrator + optional UI
+docker/compose.full.yml   # + IHMS + EC-OPS for E2E
+```
+
+---
+
+## RabbitMQ events (Phase 5 stretch)
+
+From KB-IHMS `caching-events.mdc` — orchestrator may consume, not publish:
+
+- Exchange: `inventory.holds`
+- Routing keys: `hold.created`, `hold.released`, `hold.expired`
+- Payload includes: `holdId`, `status`, `items`, `createdAt`, `expiresAt`, trigger reason
+- Consumer must not call back to IHMS for context already in the event
+- Broker outage must not fail REST checkout path — events are supplementary
+
+Implement in a dedicated module (e.g. `src/events/`) behind an interface; not in gateway HTTP client.
+
+---
+
+## ADR triggers
+
+Create or update an ADR when:
+
+- Changing module boundaries
+- Adding new upstream communication (e.g. RabbitMQ consumer)
+- Changing session storage technology
+- Altering saga compensation strategy
+
+ADR stubs live in `docs/adr/`. Finalize ADR text when implementing the decision.
+
+---
+
+## Architecture review checklist
+
+Before merging structural changes:
+
+- [ ] No gateway imports outside allowed modules
+- [ ] No upstream URLs outside gateway/
+- [ ] Catalog mapping not duplicated in saga/api
+- [ ] New routes delegate to checkout, not gateway
+- [ ] DECISION-MATRIX still accurate or updated
+- [ ] Sequence doc exists for new user-facing flow
+
+---
+
+## Related rules
+
+- Workflow: [01-workflow.mdc](01-workflow.mdc)
+- Testing/saga quality: [03-quality.mdc](03-quality.mdc)
+- Doc updates: [04-documentation.mdc](04-documentation.mdc)
