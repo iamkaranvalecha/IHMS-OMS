@@ -9,6 +9,7 @@ import pytest
 from src.catalog.provider import JsonCatalogProvider
 from src.gateway.ecops_models import OrderResponse, OrderStatus
 from src.gateway.exceptions import (
+    GatewayError,
     GatewayTimeoutError,
     HoldConflictError,
     UpstreamError,
@@ -282,6 +283,42 @@ async def test_timeout_without_reconciled_order_does_not_retry_post(
 
     assert saga.ecops.create_order.await_count == 1
     saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_timeout_without_reconciled_order_does_not_requery_after_miss(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    saga.ecops.create_order.side_effect = GatewayTimeoutError("timeout")
+    saga.ecops.find_order_by_client_reference.return_value = None
+
+    with pytest.raises(CompensationIncompleteError):
+        await saga.confirm(session.session_id, None, "idem-timeout-miss", obs)
+
+    assert saga.ecops.find_order_by_client_reference.await_count == 3
+    saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
+    updated = saga.sessions.get(session.session_id)
+    assert updated is not None
+    assert updated.state == SessionState.COMPENSATED
+
+
+@pytest.mark.asyncio
+async def test_confirm_transport_error_compensates_hold(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    saga.ecops.create_order.side_effect = GatewayError("connection reset")
+
+    with pytest.raises(GatewayError):
+        await saga.confirm(session.session_id, None, "idem-gateway-error", obs)
+
+    saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
+    updated = saga.sessions.get(session.session_id)
+    assert updated is not None
+    assert updated.state == SessionState.COMPENSATED
 
 
 @pytest.mark.asyncio
