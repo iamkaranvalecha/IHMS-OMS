@@ -1,0 +1,30 @@
+name: Ensure repository labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create or update labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            name=$(echo "$label" | jq -r '.name')
+            color=$(echo "$label" | jq -r '.color')
+            description=$(echo "$label" | jq -r '.description')
+            gh label create "$name" --color "$color" --description "$description" --force \
+              --repo "${{ github.repository }}"
+          done

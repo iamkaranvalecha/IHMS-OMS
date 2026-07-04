@@ -1,0 +1,21 @@
+[
+  { "name": "priority/p0", "color": "b60205", "description": "Critical path — blocks other work" },
+  { "name": "priority/p1", "color": "d93f0b", "description": "Important — current milestone" },
+  { "name": "priority/p2", "color": "fbca04", "description": "Nice to have — defer if blocked" },
+  { "name": "size/xs", "color": "c5def5", "description": "Extra small (< 1 hour)" },
+  { "name": "size/s", "color": "c5def5", "description": "Small (1–3 hours)" },
+  { "name": "size/m", "color": "c5def5", "description": "Medium (half day)" },
+  { "name": "size/l", "color": "c5def5", "description": "Large (1 day)" },
+  { "name": "size/xl", "color": "c5def5", "description": "Extra large (multi-day)" },
+  { "name": "phase-1", "color": "0e8a16", "description": "Phase 1 — scaffold" },
+  { "name": "phase-2", "color": "0e8a16", "description": "Phase 2 — gateway + session + catalog" },
+  { "name": "phase-3", "color": "0e8a16", "description": "Phase 3 — saga + flows" },
+  { "name": "phase-4", "color": "0e8a16", "description": "Phase 4 — React UI" },
+  { "name": "phase-5", "color": "0e8a16", "description": "Phase 5 — full stack E2E" },
+  { "name": "integration/oms", "color": "5319e7", "description": "OMS integration work" },
+  { "name": "area/backend", "color": "1d76db", "description": "Backend / saga / gateway" },
+  { "name": "area/frontend", "color": "1d76db", "description": "React frontend" },
+  { "name": "area/infra", "color": "1d76db", "description": "Docker, CI, project sync" },
+  { "name": "area/docs", "color": "1d76db", "description": "Documentation and rules" },
+  { "name": "area/integration", "color": "1d76db", "description": "Cross-repo integration" }
+]

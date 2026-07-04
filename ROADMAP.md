@@ -6,19 +6,13 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ---
 
-## Current phase: Phase 1 — Scaffold
+## Current phase: Phase 3 — Saga + flows
 
-**Goal:** Repo structure, living docs, cursor rules, CI, verify.sh green with empty implementation.
+**Goal:** place-hold, confirm, cancel, compensation, idempotency, reconciliation path.
 
-**Active issues:** Scaffold checkout-orchestrator v4 (`integration/oms`)
+**Prerequisites:** Phase 2 gate passed (2026-07-04)
 
-**Gate checklist:**
-
-- [x] `scripts/verify.sh` green
-- [x] `docs/DECISION-MATRIX.md` reviewable
-- [x] Four cursor rules in `.cursor/rules/`
-- [x] `ROADMAP.md` shows Phase 1 current
-- [ ] KB-IHMS doc links PR (cross-repo — separate issue)
+**Active issues:** `[Phase 3] Saga coordinator and checkout flows (UC-3..UC-7)`
 
 ---
 
@@ -26,23 +20,26 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 | Phase | Gate passed | Notes |
 |-------|-------------|-------|
-| Phase 0 | 2026-07-04 | KB-IHMS CI green; EC-OPS main CI red (Tailscale/DB — upstream frozen, not blocking scaffold) |
+| Phase 0 | 2026-07-04 | KB-IHMS CI green; EC-OPS main CI red (frozen) |
+| Phase 1 | 2026-07-04 | Scaffold — verify.sh, docs, 4 rules, CI |
+| Phase 2 | 2026-07-04 | IhmsClient, EcOpsClient, session store, catalog API, 18 tests |
+
+### Phase 2 deliverables
+
+- [x] `IhmsClient` — create/get/release hold + observability headers
+- [x] `EcOpsClient` — create/get/list orders + Bearer auth
+- [x] `CheckoutSession` + `InMemorySessionStore`
+- [x] `CheckoutService` + `/catalog`, `/sessions` API
+- [x] Contract tests (respx), component tests, integration tests
 
 ---
 
 ## Next
 
-### Phase 2 — Gateway + session + catalog
-
-- `IhmsClient`, `EcOpsClient` with observability headers
-- `CatalogProvider` wired to API
-- Contract + component tests
-
-**Prerequisites:** Phase 1 gate complete
-
 ### Phase 3 — Saga + flows
 
-- place-hold, confirm, cancel, compensation, idempotency, reconciliation
+- place-hold, confirm, cancel, compensation, idempotency
+- Reconciliation path for timeout scenario
 - Sequence docs finalized; integration tests per FAILURE-SCENARIOS row
 
 ### Phase 4 — React UI

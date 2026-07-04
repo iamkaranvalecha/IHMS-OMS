@@ -1,0 +1,128 @@
+name: Sync project board
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize, closed]
+  issues:
+    types: [opened, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      sync_issues:
+        description: "Comma-separated issue numbers to sync (e.g. 3,4)"
+        required: false
+        default: "3,4"
+      sync_pr:
+        description: "PR number to sync (e.g. 2)"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x .github/scripts/*.sh
+
+      - name: Sync opened PR to project board
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            echo "::notice::Classic PAT scopes needed: project, read:project, repo, read:org."
+            exit 0
+          fi
+          gh auth status
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            name=$(echo "$label" | jq -r '.name')
+            color=$(echo "$label" | jq -r '.color')
+            description=$(echo "$label" | jq -r '.description')
+            gh label create "$name" --color "$color" --description "$description" --force \
+              --repo "${{ github.repository }}"
+          done
+          .github/scripts/sync-pr-opened.sh \
+            "${{ github.event.pull_request.html_url }}" \
+            "${{ github.head_ref }}" \
+            "${{ github.event.pull_request.number }}"
+          gh issue close 3 --repo "${{ github.repository }}" \
+            --comment "Phase 1 completed in PR #1."
+          for num in 3 4; do
+            .github/scripts/sync-issue-opened.sh "$num"
+          done
+          ITEM4=$(gh project item-list 5 --owner iamkaranvalecha --format json --limit 200 \
+            | jq -r '.items[] | select(.content.number == 4 and .content.type == "Issue") | .id' | head -1)
+          if [[ -n "$ITEM4" ]]; then
+            gh project item-edit --id "$ITEM4" --project-id PVT_kwHOAKhJ184BcdYO \
+              --field-id PVTSSF_lAHOAKhJ184BcdYOzhXGCAQ --single-select-option-id aba860b9
+          fi
+
+      - name: Mark project items Done after merge
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            exit 0
+          fi
+          gh auth status
+          .github/scripts/sync-pr-merged.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}"
+
+      - name: Sync issue labels to project fields
+        if: github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            exit 0
+          fi
+          gh auth status
+          .github/scripts/sync-issue-opened.sh "${{ github.event.issue.number }}"
+
+      - name: Manual backfill (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::PROJECT_PAT secret is not configured."
+            exit 1
+          fi
+          gh auth status
+          jq -c '.[]' .github/labels.json | while read -r label; do
+            name=$(echo "$label" | jq -r '.name')
+            color=$(echo "$label" | jq -r '.color')
+            description=$(echo "$label" | jq -r '.description')
+            gh label create "$name" --color "$color" --description "$description" --force \
+              --repo "${{ github.repository }}"
+          done
+          IFS=',' read -ra ISSUES <<< "${{ inputs.sync_issues }}"
+          for num in "${ISSUES[@]}"; do
+            num="$(echo "$num" | tr -d ' ')"
+            [[ -n "$num" ]] && .github/scripts/sync-issue-opened.sh "$num"
+          done
+          PR_NUM="${{ inputs.sync_pr }}"
+          if [[ -n "$PR_NUM" ]]; then
+            PR_URL=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json url -q '.url')
+            BRANCH=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefName -q '.headRefName')
+            .github/scripts/sync-pr-opened.sh "$PR_URL" "$BRANCH" "$PR_NUM"
+          fi
+          gh issue close 3 --repo "${{ github.repository }}" --comment "Phase 1 completed in PR #1." 2>/dev/null || true
+          ITEM3=$(gh project item-list 5 --owner iamkaranvalecha --format json --limit 200 \
+            | jq -r '.items[] | select(.content.number == 3 and .content.type == "Issue") | .id' | head -1)
+          if [[ -n "$ITEM3" ]]; then
+            gh project item-edit --id "$ITEM3" --project-id PVT_kwHOAKhJ184BcdYO \
+              --field-id PVTSSF_lAHOAKhJ184BcdYOzhXGCAQ --single-select-option-id 98236657 || true
+          fi
+          echo "Backfill complete."

@@ -19,7 +19,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | Date | Agent / session | verify.sh | Notes |
 |------|-----------------|-----------|-------|
-| 2026-07-04 | Cloud Agent — Phase 1 scaffold | passed | ruff + 5 tests (2 unit, 1 contract, 1 component, 1 integration) |
+| 2026-07-04 | Cloud Agent — Phase 2 gateway | passed | 18 tests (5 unit, 5 contract, 4 component, 4 integration) |
 
 ## Session log
 
@@ -61,10 +61,32 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - Replaced all Project #4 references with Project #5 across rules, ROADMAP, README, AGENTS.md
 - Updated `gh project item-list` and `--project "IHMS-OMS"` in workflow rule
 
+### 2026-07-04 — Workflow compliance fix (Project #5)
+
+**User query:** Why aren't you following all rules? Project details not attached.
+
+**Human audit — rejected AI shortcuts:**
+- Phase 2 started without issue-first workflow
+- PR #2 opened without `Closes #N`
+- Branch named `cursor/phase2-...` instead of `cursor/{issue}-...`
+- No project-sync automation in repo; items not on Project #5 board
+
+**Corrective actions:**
+- Created retroactive issues [#3](https://github.com/iamkaranvalecha/IHMS-OMS/issues/3) (Phase 1), [#4](https://github.com/iamkaranvalecha/IHMS-OMS/issues/4) (Phase 2)
+- Added `.github/workflows/project-sync.yml` + scripts (Project #5 field IDs)
+- Added `.github/workflows/ensure-labels.yml` + `.github/labels.json`
+- Added `docs/PROJECT-WORKFLOW.md`, YAML issue template
+- PR #2 should include `Closes #4` (agent token lacks PR edit / project write)
+
+**User action needed:** Configure repo secret `PROJECT_PAT`; manually add #3, #4, PR #2 to Project #5 until PAT is set; add `Closes #4` to PR #2 description.
+
+**Update 2026-07-04:** `PROJECT_PAT` configured. Run **Sync project board** workflow (Actions → workflow_dispatch) after merging workflow files to `main`, or merge PR #2 to activate auto-sync.
+
 ## User queries archive
 
 | Date | Query summary |
 |------|---------------|
 | 2026-07-04 | IHMS-OMS project path + v4 integration plan |
 | 2026-07-04 | Merge KB-IHMS cursor rules into orchestrator 4-rule set |
-| 2026-07-04 | Update project board to Project #5 |
+| 2026-07-04 | PR merged; start Phase 2 |
+| 2026-07-04 | Workflow rules not followed — Project #5 not attached |

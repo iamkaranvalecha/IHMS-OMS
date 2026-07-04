@@ -7,9 +7,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-REQUEST_ID_HEADER = "X-Request-ID"
-CORRELATION_ID_HEADER = "X-Correlation-ID"
-TRACE_ID_HEADER = "X-Trace-ID"
+from src.observability.constants import (
+    CORRELATION_ID_HEADER,
+    REQUEST_ID_HEADER,
+    TRACE_ID_HEADER,
+)
 
 
 class ObservabilityMiddleware(BaseHTTPMiddleware):
