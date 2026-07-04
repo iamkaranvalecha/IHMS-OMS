@@ -14,7 +14,8 @@ All integration code lives here. Never modify upstream assignment repos.
 ## Read order
 
 1. [ROADMAP.md](ROADMAP.md) — current phase and active work
-2. [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) — 60-second architecture
+2. [docs/PROJECT-WORKFLOW.md](docs/PROJECT-WORKFLOW.md) — Project #5, issues, PROJECT_PAT
+3. [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) — 60-second architecture
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module layout
 4. Relevant [docs/sequences/](docs/sequences/) file for the flow you are changing
 5. [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) — ensure your change has a matrix row
@@ -40,13 +41,11 @@ Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS
 | [.cursor/rules/03-quality.mdc](.cursor/rules/03-quality.mdc) | Testing pyramid, saga, observability |
 | [.cursor/rules/04-documentation.mdc](.cursor/rules/04-documentation.mdc) | Living docs, AI-USAGE, ROADMAP updates |
 
-## Obligations summary
+## Project board (mandatory)
 
-- Open a GitHub Issue before non-trivial code (`integration/oms` label).
-- Branch: `cursor/{issue}-*` — never push directly to `main`.
-- PR must include `Closes #N` and pass `scripts/verify.sh`.
-- Update [AI-USAGE.md](AI-USAGE.md) before every PR.
-- Upstream repos untouched unless explicitly scoped as docs-only cross-repo PR.
+Before coding: create issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1). See [docs/PROJECT-WORKFLOW.md](docs/PROJECT-WORKFLOW.md).
+
+Branch: `cursor/{issue-number}-description-bf51`. PR body: `Closes #N`.
 
 ## Verification commands
 

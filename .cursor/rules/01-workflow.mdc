@@ -195,11 +195,13 @@ gh project item-list 5 --owner iamkaranvalecha --format json
 ### Creating issues
 
 ```bash
-gh issue create --title "[Phase N] ..." --body "..." --project "IHMS-OMS" \
-  --label "priority/p1,size/m,integration/oms"
+gh issue create --title "[Phase N] ..." --body "..." \
+  --label "integration/oms,priority/p1,size/m,phase-N"
 ```
 
-Or use `.github/ISSUE_TEMPLATE/integration-task.md`.
+Use the **Integration task** YAML template (`.github/ISSUE_TEMPLATE/integration-task.yml`) — it includes Project #5 link and priority/size fields.
+
+**After issue is created:** branch MUST be `cursor/{issue-number}-short-description-bf51` (issue number in branch name is required for project-sync).
 
 | Label | Use |
 |-------|-----|
@@ -213,13 +215,11 @@ Or use `.github/ISSUE_TEMPLATE/integration-task.md`.
 
 ### Project automation
 
-KB-IHMS `.github/workflows/project-sync.yml` pattern (add to IHMS-OMS when ready):
+KB-IHMS `.github/workflows/project-sync.yml` pattern — **implemented** in this repo:
 
-- **Issues opened/labeled** → add to project, Status = Backlog
-- **PR opened** → Status = In review (branch `cursor/{N}-*`)
-- **PR merged** → Status = Done on PR and linked issue
-
-Do not manually fight the workflow — set Status via board or rely on automation.
+- `.github/workflows/project-sync.yml` → [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1)
+- `.github/scripts/sync-*.sh` — field IDs for IHMS-OMS board
+- Requires repo secret **`PROJECT_PAT`** (classic PAT). See [docs/PROJECT-WORKFLOW.md](../docs/PROJECT-WORKFLOW.md).
 
 **`PROJECT_PAT` secret:** User-owned Project #5 requires a **classic PAT** with `project`, `read:project`, `repo`, and `read:org` scopes. Fine-grained PATs cannot access user-owned projects. Until set, sync skips gracefully and CI stays green.
 

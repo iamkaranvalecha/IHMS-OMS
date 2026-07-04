@@ -1,0 +1,77 @@
+name: Integration task
+description: Track checkout orchestrator work by phase on Project #5
+title: "[Phase N] "
+labels: ["integration/oms", "priority/p1"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tasks are auto-added to [IHMS-OMS Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1).
+        Priority and size labels sync to project fields via `.github/workflows/project-sync.yml` (requires `PROJECT_PAT` repo secret).
+
+        **Branch naming:** `cursor/{issue-number}-short-description-bf51` after this issue is created.
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options:
+        - "1 — scaffold"
+        - "2 — gateway + session + catalog"
+        - "3 — saga + flows"
+        - "4 — React UI"
+        - "5 — full stack E2E"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 — critical path
+        - P1 — current milestone
+        - P2 — defer if blocked
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - XS
+        - S
+        - M
+        - L
+        - XL
+    validations:
+      required: true
+
+  - type: input
+    id: uc_id
+    attributes:
+      label: Use case ID
+      placeholder: "UC-3, UC-5, UC-6, UC-7"
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: test_tiers
+    attributes:
+      label: Test tiers required
+      options:
+        - label: unit
+        - label: contract
+        - label: component
+        - label: integration
+        - label: e2e (Phase 5)

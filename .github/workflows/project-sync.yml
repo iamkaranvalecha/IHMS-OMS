@@ -1,0 +1,62 @@
+name: Sync project board
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize, closed]
+  issues:
+    types: [opened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x .github/scripts/*.sh
+
+      - name: Sync opened PR to project board
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            echo "::notice::Classic PAT scopes needed: project, read:project, repo, read:org."
+            exit 0
+          fi
+          gh auth status
+          .github/scripts/sync-pr-opened.sh \
+            "${{ github.event.pull_request.html_url }}" \
+            "${{ github.head_ref }}"
+
+      - name: Mark project items Done after merge
+        if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            exit 0
+          fi
+          gh auth status
+          .github/scripts/sync-pr-merged.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.head_ref }}"
+
+      - name: Sync issue labels to project fields
+        if: github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::PROJECT_PAT secret is not configured — skipping project board sync."
+            exit 0
+          fi
+          gh auth status
+          .github/scripts/sync-issue-opened.sh "${{ github.event.issue.number }}"
