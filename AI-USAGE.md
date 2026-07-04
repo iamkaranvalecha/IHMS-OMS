@@ -21,6 +21,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 |------|-----------------|-----------|-------|
 | 2026-07-04 | Cloud Agent — Phase 2 gateway | passed | 18 tests (5 unit, 5 contract, 4 component, 4 integration) |
 | 2026-07-04 | Cloud Agent — Phase 3 saga | passed | 39 tests (15 unit, 6 contract, 7 component, 11 integration) |
+| 2026-07-04 | Bug-finding automation — EC-OPS timeout reconciliation | passed | 42 tests (16 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
 
@@ -83,6 +84,27 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 **Update 2026-07-04:** `PROJECT_PAT` configured. Run **Sync project board** workflow (Actions → workflow_dispatch) after merging workflow files to `main`, or merge PR #2 to activate auto-sync.
 
+### 2026-07-04 — EC-OPS timeout reconciliation bug fix
+
+**User query:** Deep bug-finding automation for PR #6; fix only critical correctness bugs.
+
+**Bug and impact:**
+- `src/saga/coordinator.py` retried `POST /orders` after timeout with an idempotency key that frozen EC-OPS ignores, risking duplicate orders.
+- `src/gateway/ecops_client.py` sent unsupported `client_ref` query params and returned the first listed order, risking session/order corruption by attaching an unrelated order.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected the PR assumption that EC-OPS supports `client_reference` persistence or `Idempotency-Key` enforcement; verified against frozen EC-OPS `schemas.py`, `service.py`, and `router.py`.
+
+**Actions:**
+- Removed unsupported `client_reference` from EC-OPS create payloads.
+- Reconciliation now accepts only returned orders whose `client_reference` actually matches; otherwise it compensates and surfaces the ambiguous timeout.
+- Removed blind retry of `POST /orders` after timeout.
+- Added unit, contract, and integration regressions for no duplicate retry and no unmatched-order reconciliation.
+
+**Verification:**
+- `python3 -m pytest tests/unit/test_saga_coordinator.py tests/contract/test_upstream_contracts.py tests/integration/test_saga_flows.py -q` → 26 passed.
+- `bash scripts/verify.sh` → passed (ruff; 16 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
+
 ## User queries archive
 
 | Date | Query summary |
@@ -91,3 +113,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Merge KB-IHMS cursor rules into orchestrator 4-rule set |
 | 2026-07-04 | PR merged; start Phase 2 |
 | 2026-07-04 | Workflow rules not followed — Project #5 not attached |
+| 2026-07-04 | Deep bug-finding automation on PR #6 |
