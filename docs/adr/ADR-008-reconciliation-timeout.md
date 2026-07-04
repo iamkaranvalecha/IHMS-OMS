@@ -1,6 +1,6 @@
 # ADR-008: Reconciliation After Ambiguous Timeout
 
-**Status:** Proposed (Phase 3)  
+**Status:** Accepted  
 **Date:** 2026-07-04
 
 ## Context
@@ -19,4 +19,4 @@ Implement reconciliation query: look up order by correlation / idempotency key b
 
 ## Open questions
 
-- Exact EC-OPS query API for idempotency lookup — confirm during gateway implementation.
+- ~~Exact EC-OPS query API for idempotency lookup~~ — resolved: `GET /orders?client_ref={correlation_id}` with `client_reference` on order create (gateway contract in Phase 3).

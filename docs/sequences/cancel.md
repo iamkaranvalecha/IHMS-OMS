@@ -2,7 +2,7 @@
 
 **Use case:** UC-6 (abandon checkout)
 
-**Status:** Stub — finalize in Phase 3
+**Status:** Implemented (Phase 3)
 
 ## Flow
 

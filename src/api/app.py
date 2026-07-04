@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     sessions = InMemorySessionStore()
 
     async with gateway_clients(settings) as (ihms, ecops):
-        app.state.checkout_service = CheckoutService(
+        app.state.checkout_service = CheckoutService.create(
             catalog=catalog,
             sessions=sessions,
             ihms=ihms,
@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="Checkout Orchestrator",
         description="BFF and saga layer for KB-IHMS + EC-OPS checkout integration",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
     app.state.settings = resolved

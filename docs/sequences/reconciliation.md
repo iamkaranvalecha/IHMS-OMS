@@ -2,7 +2,7 @@
 
 **Scenario:** `POST /orders` times out — order may or may not exist
 
-**Status:** Stub — implement in Phase 3
+**Status:** Implemented (Phase 3)
 
 ## Problem
 

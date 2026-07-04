@@ -2,7 +2,7 @@
 
 **Use case:** UC-6 variant — order fails after successful hold
 
-**Status:** Stub — finalize in Phase 3
+**Status:** Implemented (Phase 3)
 
 ## Flow
 

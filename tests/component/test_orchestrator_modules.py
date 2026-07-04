@@ -26,9 +26,12 @@ def catalog() -> JsonCatalogProvider:
 def checkout_service(catalog: JsonCatalogProvider) -> CheckoutService:
     ihms = MagicMock()
     ihms.create_hold = AsyncMock()
+    ihms.get_hold = AsyncMock()
+    ihms.release_hold = AsyncMock()
     ecops = MagicMock()
     ecops.create_order = AsyncMock()
-    return CheckoutService(
+    ecops.find_order_by_client_reference = AsyncMock(return_value=None)
+    return CheckoutService.create(
         catalog=catalog,
         sessions=InMemorySessionStore(),
         ihms=ihms,

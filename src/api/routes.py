@@ -3,10 +3,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_checkout_service
+from src.api.errors import http_exception_for_error
 from src.catalog.provider import CatalogProduct
 from src.checkout.service import CheckoutService
 from src.session.models import CheckoutSession
@@ -69,6 +70,13 @@ class SessionCreateResponse(BaseModel):
     state: str
 
 
+class SessionLineItemOut(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    unit_price: float
+
+
 class SessionResponse(BaseModel):
     session_id: UUID
     correlation_id: str
@@ -76,6 +84,8 @@ class SessionResponse(BaseModel):
     hold_id: str | None = None
     order_id: str | None = None
     expires_at: str | None = None
+    customer_name: str | None = None
+    line_items: list[SessionLineItemOut] = Field(default_factory=list)
 
     @classmethod
     def from_session(cls, session: CheckoutSession) -> "SessionResponse":
@@ -86,6 +96,16 @@ class SessionResponse(BaseModel):
             hold_id=session.hold_id,
             order_id=session.order_id,
             expires_at=session.expires_at.isoformat() if session.expires_at else None,
+            customer_name=session.customer_name,
+            line_items=[
+                SessionLineItemOut(
+                    sku=item.sku,
+                    name=item.name,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                )
+                for item in session.line_items
+            ],
         )
 
 
@@ -93,6 +113,19 @@ class SessionCreateBody(BaseModel):
     correlation_id: str | None = Field(
         default=None,
         description="Optional; defaults to request correlation ID",
+    )
+
+
+class PlaceHoldBody(BaseModel):
+    sku: str = Field(min_length=1)
+    quantity: int = Field(gt=0, default=1)
+    customer_name: str = Field(min_length=1)
+
+
+class ConfirmBody(BaseModel):
+    customer_name: str | None = Field(
+        default=None,
+        description="Optional if set during place-hold",
     )
 
 
@@ -106,12 +139,11 @@ async def create_session(
         request.state.correlation_id
     )
     session = checkout.create_session(correlation_id)
-    response = SessionCreateResponse(
+    return SessionCreateResponse(
         session_id=session.session_id,
         correlation_id=session.correlation_id,
         state=session.state.value,
     )
-    return response
 
 
 @sessions_router.get("/{session_id}", response_model=SessionResponse)
@@ -122,4 +154,70 @@ async def get_session(
     session = checkout.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    return SessionResponse.from_session(session)
+
+
+@sessions_router.post("/{session_id}/hold", response_model=SessionResponse)
+async def place_hold(
+    session_id: UUID,
+    body: PlaceHoldBody,
+    request: Request,
+    checkout: CheckoutDep,
+) -> SessionResponse:
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    try:
+        session = await checkout.place_hold(
+            session_id,
+            body.sku,
+            body.quantity,
+            body.customer_name,
+            headers,
+        )
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(session)
+
+
+@sessions_router.post("/{session_id}/confirm", response_model=SessionResponse)
+async def confirm_session(
+    session_id: UUID,
+    request: Request,
+    checkout: CheckoutDep,
+    body: ConfirmBody | None = None,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> SessionResponse:
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    customer_name = body.customer_name if body else None
+    try:
+        result = await checkout.confirm(session_id, customer_name, idempotency_key, headers)
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(result.session)
+
+
+@sessions_router.delete("/{session_id}", response_model=SessionResponse)
+async def abandon_session(
+    session_id: UUID,
+    request: Request,
+    checkout: CheckoutDep,
+) -> SessionResponse:
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    try:
+        session = await checkout.abandon(session_id, headers)
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
     return SessionResponse.from_session(session)

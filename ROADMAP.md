@@ -6,13 +6,13 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ---
 
-## Current phase: Phase 3 — Saga + flows
+## Current phase: Phase 4 — React UI
 
-**Goal:** place-hold, confirm, cancel, compensation, idempotency, reconciliation path.
+**Goal:** Inventory, cart, countdown, confirm/cancel; optional dev panel for correlation + trace IDs.
 
-**Prerequisites:** Phase 2 gate passed (2026-07-04)
+**Prerequisites:** Phase 3 gate passed (2026-07-04)
 
-**Active issues:** `[Phase 3] Saga coordinator and checkout flows (UC-3..UC-7)`
+**Active issues:** `[Phase 4] React checkout UI`
 
 ---
 
@@ -23,24 +23,22 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 | Phase 0 | 2026-07-04 | KB-IHMS CI green; EC-OPS main CI red (frozen) |
 | Phase 1 | 2026-07-04 | Scaffold — verify.sh, docs, 4 rules, CI |
 | Phase 2 | 2026-07-04 | IhmsClient, EcOpsClient, session store, catalog API, 18 tests |
+| Phase 3 | 2026-07-04 | Saga coordinator, hold/confirm/cancel, compensation, idempotency, reconciliation, 39 tests |
 
-### Phase 2 deliverables
+### Phase 3 deliverables
 
-- [x] `IhmsClient` — create/get/release hold + observability headers
-- [x] `EcOpsClient` — create/get/list orders + Bearer auth
-- [x] `CheckoutSession` + `InMemorySessionStore`
-- [x] `CheckoutService` + `/catalog`, `/sessions` API
-- [x] Contract tests (respx), component tests, integration tests
+- [x] `SagaCoordinator` — place-hold, confirm, abandon
+- [x] Compensation on EC-OPS failure (release hold → COMPENSATED)
+- [x] Idempotency store for duplicate confirm
+- [x] Reconciliation after POST /orders timeout (client_reference query)
+- [x] Per-session asyncio lock (`LockedSessionStore`)
+- [x] Frozen line items on session at hold time
+- [x] API: `POST /sessions/{id}/hold`, `POST /sessions/{id}/confirm`, `DELETE /sessions/{id}`
+- [x] FAILURE-SCENARIOS matrix covered by unit/component/integration tests
 
 ---
 
 ## Next
-
-### Phase 3 — Saga + flows
-
-- place-hold, confirm, cancel, compensation, idempotency
-- Reconciliation path for timeout scenario
-- Sequence docs finalized; integration tests per FAILURE-SCENARIOS row
 
 ### Phase 4 — React UI
 
