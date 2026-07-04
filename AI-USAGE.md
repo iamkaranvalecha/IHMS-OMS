@@ -23,6 +23,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Cloud Agent — Phase 3 saga | passed | 39 tests (15 unit, 6 contract, 7 component, 11 integration) |
 | 2026-07-04 | Bug-finding automation — EC-OPS timeout reconciliation | passed | 42 tests (16 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Bug-finding automation — saga concurrency races | passed | 44 tests (18 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
+| 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
 
@@ -127,6 +128,26 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - `python3 -m pytest tests/unit/test_saga_coordinator.py -q` → 13 passed.
 - `bash scripts/verify.sh` → passed (ruff; 18 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
 
+### 2026-07-04 — Order timeout cleanup bug fix
+
+**User query:** Deep bug-finding automation for PR #6; fix only critical correctness bugs.
+
+**Bug and impact:**
+- `src/saga/coordinator.py` performed a second reconciliation GET after an unreconciled `POST /orders` timeout. If that second GET failed, the exception escaped the timeout compensation branch, leaving the session `HELD` with an ambiguous EC-OPS order outcome and allowing a retry to create a duplicate order.
+- Non-timeout EC-OPS transport failures escaped confirm without releasing the IHMS hold, leaking reserved inventory until expiry or manual cleanup.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected adding another retry around the second reconciliation query; `_create_order_with_retry` already performs the bounded reconciliation attempts, and the unreconciled path must move directly to compensation.
+
+**Actions:**
+- Removed the duplicate reconciliation call from the outer timeout handler and made unreconciled timeouts compensate immediately.
+- Added generic `GatewayError` cleanup during confirm so transport failures release the hold before surfacing the gateway error.
+- Added unit regressions for unreconciled timeout cleanup and generic EC-OPS transport failure compensation.
+
+**Verification:**
+- `python3 -m pytest tests/unit/test_saga_coordinator.py -q` → 15 passed.
+- `bash scripts/verify.sh` → passed (ruff; 20 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
+
 ## User queries archive
 
 | Date | Query summary |
@@ -137,3 +158,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Workflow rules not followed — Project #5 not attached |
 | 2026-07-04 | Deep bug-finding automation on PR #6 |
 | 2026-07-04 | Deep bug-finding automation on PR #6 — saga concurrency races |
+| 2026-07-04 | Deep bug-finding automation on PR #6 — order timeout cleanup |
