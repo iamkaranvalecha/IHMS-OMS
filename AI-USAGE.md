@@ -25,6 +25,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — saga concurrency races | passed | 44 tests (18 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 4 React UI | passed | backend verify.sh 46 tests; frontend 7 Vitest + build |
+| 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
 
 ## Session log
 
@@ -161,6 +162,25 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - CORS middleware on orchestrator; CI frontend job
 - Version 0.4.0; ROADMAP Phase 5 current
 
+### 2026-07-04 — Frontend container API proxy bug fix
+
+**User query:** Deep bug-finding automation for PR #11; fix only critical correctness bugs.
+
+**Bug and impact:**
+- `frontend/Dockerfile` builds the Vite app before compose runtime environment variables are applied, so the shipped nginx image falls back to relative API paths.
+- `frontend/nginx.conf` served those relative `/catalog`, `/sessions`, and `/health` paths as static SPA routes instead of proxying them to the orchestrator, leaving the Docker/compose UI unable to load catalog data or perform checkout.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected relying on compose `environment: VITE_API_URL=...` for the production container because Vite only embeds `VITE_*` values at build time.
+
+**Actions:**
+- Added nginx proxy locations for `/health`, `/catalog`, and `/sessions` to forward relative API requests to the `orchestrator:8000` service on the compose network.
+
+**Verification:**
+- `cd frontend && npm install && npm test && npm run build` → 7 Vitest tests passed; production build passed.
+- `bash scripts/verify.sh` → passed (ruff; 20 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
+- Docker, Podman, and nginx binaries were unavailable in the runner, so live container syntax validation was not performed here.
+
 ## User queries archive
 
 | Date | Query summary |
@@ -172,3 +192,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Deep bug-finding automation on PR #6 |
 | 2026-07-04 | Deep bug-finding automation on PR #6 — saga concurrency races |
 | 2026-07-04 | Deep bug-finding automation on PR #6 — order timeout cleanup |
+| 2026-07-04 | Deep bug-finding automation on PR #11 — frontend container API proxy |
