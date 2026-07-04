@@ -25,10 +25,6 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     customer_name: str = Field(min_length=1)
     items: list[OrderItemCreate] = Field(min_length=1)
-    client_reference: str | None = Field(
-        default=None,
-        description="Orchestrator correlation reference for reconciliation queries",
-    )
 
 
 class OrderItemResponse(BaseModel):

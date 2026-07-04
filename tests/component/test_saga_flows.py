@@ -102,7 +102,6 @@ async def test_saga_happy_path_hold_then_confirm(checkout: CheckoutService, obs)
     assert result.session.state == SessionState.CONFIRMED
     assert result.session.order_id == str(order_id)
     sent_payload = checkout.ecops.create_order.await_args.args[0]
-    assert sent_payload.client_reference == "corr-happy"
     assert sent_payload.items[0].product_name == "WIDGET-001"
     assert sent_payload.items[0].price == Decimal("19.99")
 

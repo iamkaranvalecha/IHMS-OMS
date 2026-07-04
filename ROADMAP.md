@@ -30,7 +30,7 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 - [x] `SagaCoordinator` — place-hold, confirm, abandon
 - [x] Compensation on EC-OPS failure (release hold → COMPENSATED)
 - [x] Idempotency store for duplicate confirm
-- [x] Reconciliation after POST /orders timeout (client_reference query)
+- [x] Reconciliation after POST /orders timeout (trusted client reference match only)
 - [x] Per-session asyncio lock (`LockedSessionStore`)
 - [x] Frozen line items on session at hold time
 - [x] API: `POST /sessions/{id}/hold`, `POST /sessions/{id}/confirm`, `DELETE /sessions/{id}`

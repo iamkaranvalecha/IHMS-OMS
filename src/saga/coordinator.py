@@ -214,7 +214,6 @@ class SagaCoordinator:
         client_reference: str,
     ) -> tuple[OrderResponse, bool]:
         """Create order; return (order, reconciled_flag)."""
-        payload = payload.model_copy(update={"client_reference": client_reference})
         try:
             order = await self.ecops.create_order(payload, headers, idempotency_key=idempotency_key)
             return order, False
@@ -222,8 +221,7 @@ class SagaCoordinator:
             order = await find_order_by_reference(self.ecops, client_reference, headers)
             if order is not None:
                 return order, True
-            order = await self.ecops.create_order(payload, headers, idempotency_key=idempotency_key)
-            return order, False
+            raise
 
     async def _finalize_success(
         self,
@@ -296,7 +294,6 @@ class SagaCoordinator:
         return OrderCreate(
             customer_name=customer_name,
             items=items,
-            client_reference=session.correlation_id,
         )
 
     def _assert_hold_not_expired(self, session: CheckoutSession) -> None:
