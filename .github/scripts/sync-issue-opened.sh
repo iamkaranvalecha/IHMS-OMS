@@ -66,6 +66,12 @@ if [[ -z "$ITEM_ID" ]]; then
 fi
 
 apply_labels_to_item "$ITEM_ID" "$LABELS"
-set_single_select "$ITEM_ID" "$FIELD_STATUS" "$STATUS_BACKLOG"
 
-echo "Synced issue #$ISSUE_NUMBER to Project #5 (status: Backlog)."
+ISSUE_STATE="$(gh issue view "$ISSUE_NUMBER" --repo "$OWNER/$REPO" --json state -q '.state' 2>/dev/null || echo OPEN)"
+if [[ "$ISSUE_STATE" == "CLOSED" ]]; then
+  set_single_select "$ITEM_ID" "$FIELD_STATUS" "$STATUS_DONE"
+else
+  set_single_select "$ITEM_ID" "$FIELD_STATUS" "$STATUS_BACKLOG"
+fi
+
+echo "Synced issue #$ISSUE_NUMBER to Project #5."
