@@ -1,1 +1,5 @@
-"""Checkout workflow entry points — confirm, abandon (Phase 3)."""
+"""Checkout workflow entry points."""
+
+from src.checkout.service import CheckoutService
+
+__all__ = ["CheckoutService"]

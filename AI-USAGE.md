@@ -19,7 +19,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | Date | Agent / session | verify.sh | Notes |
 |------|-----------------|-----------|-------|
-| 2026-07-04 | Cloud Agent — Phase 1 scaffold | passed | ruff + 5 tests (2 unit, 1 contract, 1 component, 1 integration) |
+| 2026-07-04 | Cloud Agent — Phase 2 gateway | passed | 18 tests (5 unit, 5 contract, 4 component, 4 integration) |
 
 ## Session log
 
