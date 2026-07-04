@@ -40,6 +40,10 @@ class LockedSessionStore:
             self._locks[session_id] = asyncio.Lock()
         return self._locks[session_id]
 
+    def lock_for(self, session_id: UUID) -> asyncio.Lock:
+        """Return the per-session lock for operations with upstream side effects."""
+        return self._lock_for(session_id)
+
     def save(self, session: CheckoutSession) -> CheckoutSession:
         return self._inner.save(session)
 

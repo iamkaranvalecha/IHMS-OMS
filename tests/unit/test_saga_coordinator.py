@@ -1,5 +1,6 @@
 """Unit tests for saga coordinator logic."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -103,6 +104,38 @@ async def test_place_hold_transitions_to_held(
 
 
 @pytest.mark.asyncio
+async def test_concurrent_place_hold_creates_single_upstream_hold(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+
+    async def create_hold(*args, **kwargs) -> HoldResponse:
+        await asyncio.sleep(0)
+        return HoldResponse(
+            hold_id="hold-race",
+            status=HoldStatus.ACTIVE,
+            items=[HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=1)],
+            created_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
+        )
+
+    saga.ihms.create_hold.side_effect = create_hold
+
+    results = await asyncio.gather(
+        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
+        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
+        return_exceptions=True,
+    )
+
+    held = [result for result in results if isinstance(result, CheckoutSession)]
+    errors = [result for result in results if isinstance(result, InvalidStateTransitionError)]
+    assert len(held) == 1
+    assert len(errors) == 1
+    assert saga.ihms.create_hold.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_confirm_happy_path(saga: SagaCoordinator, obs: ObservabilityHeaders) -> None:
     session = _held_session()
     saga.sessions.save(session)
@@ -177,6 +210,38 @@ async def test_idempotency_returns_cached_response(
     assert first.session.order_id == str(order_id)
     assert second.from_cache is True
     assert second.session.order_id == str(order_id)
+    assert saga.ecops.create_order.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_duplicate_confirm_creates_single_order(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+
+    async def create_order(*args, **kwargs) -> OrderResponse:
+        await asyncio.sleep(0)
+        return OrderResponse(
+            id=order_id,
+            customer_name="Test Customer",
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            items=[],
+            client_reference="corr-unit",
+        )
+
+    saga.ecops.create_order.side_effect = create_order
+
+    first, second = await asyncio.gather(
+        saga.confirm(session.session_id, None, "idem-race", obs),
+        saga.confirm(session.session_id, None, "idem-race", obs),
+    )
+
+    assert {first.session.order_id, second.session.order_id} == {str(order_id)}
+    assert sum(result.from_cache for result in (first, second)) == 1
     assert saga.ecops.create_order.await_count == 1
 
 

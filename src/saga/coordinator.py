@@ -82,14 +82,17 @@ class SagaCoordinator:
         hold_items = [
             CreateHoldItemRequest(product_id=line_item.ihms_product_id, quantity=line_item.quantity)
         ]
-        hold = await self.ihms.create_hold(hold_items, headers)
-
-        def apply_hold(current: CheckoutSession) -> CheckoutSession:
-            if current.state != SessionState.CREATED:
+        async with self.sessions.lock_for(session_id):
+            session = self.sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError("Session not found")
+            if session.state != SessionState.CREATED:
                 raise InvalidStateTransitionError(
-                    f"Cannot place hold from state {current.state.value}",
+                    f"Cannot place hold from state {session.state.value}",
                 )
-            return current.model_copy(
+
+            hold = await self.ihms.create_hold(hold_items, headers)
+            updated = session.model_copy(
                 update={
                     "state": SessionState.HELD,
                     "hold_id": hold.hold_id,
@@ -98,8 +101,7 @@ class SagaCoordinator:
                     "line_items": [line_item],
                 }
             )
-
-        return await self.sessions.mutate(session_id, apply_hold)
+            return self.sessions.save(updated)
 
     async def confirm(
         self,
@@ -108,102 +110,97 @@ class SagaCoordinator:
         idempotency_key: str,
         headers: ObservabilityHeaders,
     ) -> ConfirmResult:
-        cached = self.idempotency.get(session_id, idempotency_key)
-        if cached is not None:
+        async with self.sessions.lock_for(session_id):
+            cached = self.idempotency.get(session_id, idempotency_key)
+            if cached is not None:
+                session = self.sessions.get(session_id)
+                if session is None:
+                    raise SessionNotFoundError("Session not found")
+                cached_state = cached.body.get("state")
+                updates: dict[str, object] = {}
+                if cached.order_id:
+                    updates["order_id"] = cached.order_id
+                if cached_state and session.state == SessionState.HELD:
+                    updates["state"] = SessionState(str(cached_state))
+                if updates:
+                    session = self.sessions.save(session.model_copy(update=updates))
+                return ConfirmResult(session=session, from_cache=True)
+
             session = self.sessions.get(session_id)
             if session is None:
                 raise SessionNotFoundError("Session not found")
-            cached_state = cached.body.get("state")
-            updates: dict[str, object] = {}
-            if cached.order_id:
-                updates["order_id"] = cached.order_id
-            if cached_state and session.state == SessionState.HELD:
-                updates["state"] = SessionState(str(cached_state))
-            if updates:
-                session = self.sessions.save(session.model_copy(update=updates))
-            return ConfirmResult(session=session, from_cache=True)
+            if session.state != SessionState.HELD:
+                raise InvalidStateTransitionError(
+                    f"Cannot confirm from state {session.state.value}",
+                    detail=f"Session must be HELD to confirm, got {session.state.value}",
+                )
+            if not session.line_items:
+                raise InvalidStateTransitionError("Session has no line items to confirm")
+            self._assert_hold_not_expired(session)
 
-        session = self.sessions.get(session_id)
-        if session is None:
-            raise SessionNotFoundError("Session not found")
-        if session.state != SessionState.HELD:
-            raise InvalidStateTransitionError(
-                f"Cannot confirm from state {session.state.value}",
-                detail=f"Session must be HELD to confirm, got {session.state.value}",
-            )
-        if not session.line_items:
-            raise InvalidStateTransitionError("Session has no line items to confirm")
-        self._assert_hold_not_expired(session)
+            resolved_customer = customer_name or session.customer_name
+            if not resolved_customer:
+                raise InvalidStateTransitionError("customer_name is required to confirm")
 
-        resolved_customer = customer_name or session.customer_name
-        if not resolved_customer:
-            raise InvalidStateTransitionError("customer_name is required to confirm")
+            order_payload = self._build_order_payload(session, resolved_customer)
 
-        order_payload = self._build_order_payload(session, resolved_customer)
-
-        try:
-            order, reconciled = await self._create_order_with_retry(
-                order_payload,
-                headers,
-                idempotency_key=idempotency_key,
-                client_reference=session.correlation_id,
-            )
-            terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
-            return await self._finalize_success(
-                session_id,
-                order,
-                idempotency_key,
-                terminal,
-            )
-        except UpstreamError:
-            await self._compensate_and_fail(session_id, session, headers)
-            raise
-        except GatewayTimeoutError:
-            order = await find_order_by_reference(
-                self.ecops,
-                session.correlation_id,
-                headers,
-            )
-            if order is not None:
-                return await self._finalize_success(
-                    session_id,
+            try:
+                order, reconciled = await self._create_order_with_retry(
+                    order_payload,
+                    headers,
+                    idempotency_key=idempotency_key,
+                    client_reference=session.correlation_id,
+                )
+                terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
+                return self._finalize_success_locked(
+                    session,
                     order,
                     idempotency_key,
-                    SessionState.RECONCILED,
+                    terminal,
                 )
-            await self._compensate_and_fail(session_id, session, headers)
-            raise CompensationIncompleteError(
-                "Order creation timed out and could not be reconciled; hold release attempted",
-            ) from None
+            except UpstreamError:
+                await self._compensate_and_fail_locked(session, headers)
+                raise
+            except GatewayTimeoutError:
+                order = await find_order_by_reference(
+                    self.ecops,
+                    session.correlation_id,
+                    headers,
+                )
+                if order is not None:
+                    return self._finalize_success_locked(
+                        session,
+                        order,
+                        idempotency_key,
+                        SessionState.RECONCILED,
+                    )
+                await self._compensate_and_fail_locked(session, headers)
+                raise CompensationIncompleteError(
+                    "Order creation timed out and could not be reconciled; hold release attempted",
+                ) from None
 
     async def abandon(
         self,
         session_id: UUID,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
-        session = self.sessions.get(session_id)
-        if session is None:
-            raise SessionNotFoundError("Session not found")
-        if session.is_terminal():
-            raise InvalidStateTransitionError(
-                f"Cannot abandon from terminal state {session.state.value}",
-            )
-
-        if session.state == SessionState.HELD and session.hold_id:
-            released = await release_hold_safe(self.ihms, session.hold_id, headers)
-            if not released:
-                raise CompensationIncompleteError(
-                    "Failed to release hold while abandoning checkout",
-                )
-
-        def apply_abandon(current: CheckoutSession) -> CheckoutSession:
-            if current.is_terminal():
+        async with self.sessions.lock_for(session_id):
+            session = self.sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError("Session not found")
+            if session.is_terminal():
                 raise InvalidStateTransitionError(
-                    f"Cannot abandon from terminal state {current.state.value}",
+                    f"Cannot abandon from terminal state {session.state.value}",
                 )
-            return current.model_copy(update={"state": SessionState.ABANDONED})
 
-        return await self.sessions.mutate(session_id, apply_abandon)
+            if session.state == SessionState.HELD and session.hold_id:
+                released = await release_hold_safe(self.ihms, session.hold_id, headers)
+                if not released:
+                    raise CompensationIncompleteError(
+                        "Failed to release hold while abandoning checkout",
+                    )
+
+            return self.sessions.save(session.model_copy(update={"state": SessionState.ABANDONED}))
 
     async def _create_order_with_retry(
         self,
@@ -223,29 +220,27 @@ class SagaCoordinator:
                 return order, True
             raise
 
-    async def _finalize_success(
+    def _finalize_success_locked(
         self,
-        session_id: UUID,
+        session: CheckoutSession,
         order: OrderResponse,
         idempotency_key: str,
         terminal_state: SessionState,
     ) -> ConfirmResult:
         order_id = str(order.id)
-
-        def apply_success(current: CheckoutSession) -> CheckoutSession:
-            if current.state != SessionState.HELD:
-                raise InvalidStateTransitionError(
-                    f"Cannot finalize confirm from state {current.state.value}",
-                )
-            return current.model_copy(
+        if session.state != SessionState.HELD:
+            raise InvalidStateTransitionError(
+                f"Cannot finalize confirm from state {session.state.value}",
+            )
+        session = self.sessions.save(
+            session.model_copy(
                 update={
                     "state": terminal_state,
                     "order_id": order_id,
                     "idempotency_key": idempotency_key,
                 }
             )
-
-        session = await self.sessions.mutate(session_id, apply_success)
+        )
         body: dict[str, object] = {
             "session_id": str(session.session_id),
             "correlation_id": session.correlation_id,
@@ -255,15 +250,14 @@ class SagaCoordinator:
             "expires_at": session.expires_at.isoformat() if session.expires_at else None,
         }
         self.idempotency.put(
-            session_id,
+            session.session_id,
             idempotency_key,
             IdempotencyRecord(status_code=200, body=body, order_id=order_id),
         )
         return ConfirmResult(session=session)
 
-    async def _compensate_and_fail(
+    async def _compensate_and_fail_locked(
         self,
-        session_id: UUID,
         session: CheckoutSession,
         headers: ObservabilityHeaders,
     ) -> None:
@@ -275,12 +269,8 @@ class SagaCoordinator:
                 "Order failed but hold could not be released",
             )
 
-        def apply_compensated(current: CheckoutSession) -> CheckoutSession:
-            if current.state != SessionState.HELD:
-                return current
-            return current.model_copy(update={"state": SessionState.COMPENSATED})
-
-        await self.sessions.mutate(session_id, apply_compensated)
+        if session.state == SessionState.HELD:
+            self.sessions.save(session.model_copy(update={"state": SessionState.COMPENSATED}))
 
     def _build_order_payload(self, session: CheckoutSession, customer_name: str) -> OrderCreate:
         items = [
