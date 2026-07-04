@@ -22,6 +22,17 @@ All integration code lives here. Never modify upstream assignment repos.
 
 ## Cursor rules (mandatory)
 
+Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS `.cursor/rules/`](https://github.com/iamkaranvalecha/KB-IHMS/tree/main/.cursor/rules):
+
+| Orchestrator rule | KB-IHMS sources merged |
+|-------------------|------------------------|
+| [01-workflow.mdc](.cursor/rules/01-workflow.mdc) | `git-workflow`, `github-project`, `oms-integration` |
+| [02-architecture.mdc](.cursor/rules/02-architecture.mdc) | `architecture`, `oms-integration`, `hold-lifecycle`, `caching-events`, `frontend` |
+| [03-quality.mdc](.cursor/rules/03-quality.mdc) | `testing`, `api-errors`, `http-requests` |
+| [04-documentation.mdc](.cursor/rules/04-documentation.mdc) | `ai-documentation`, `oms-integration` doc triggers |
+
+**Not imported** (upstream-repo specific): `dotnet-style.mdc`, `mongodb.mdc`.
+
 | Rule | Scope |
 |------|-------|
 | [.cursor/rules/01-workflow.mdc](.cursor/rules/01-workflow.mdc) | Issues, branches, PRs, Project #4 |

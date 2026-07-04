@@ -10,6 +10,8 @@ alwaysApply: false
 # 03 — Quality
 
 Testing, saga correctness, observability, and performance policies.
+Merged from KB-IHMS [`testing.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/testing.mdc), [`api-errors.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/api-errors.mdc), and [`http-requests.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/http-requests.mdc) (adapted for Python/pytest).
+
 Performance detail: [docs/PERFORMANCE.md](../docs/PERFORMANCE.md).
 Failure matrix: [docs/FAILURE-SCENARIOS.md](../docs/FAILURE-SCENARIOS.md).
 
@@ -30,6 +32,59 @@ Runs in order:
 6. `pytest tests/e2e` — only when `STACK=1`
 
 **Local must match CI.** Paste verify.sh summary in every PR.
+
+---
+
+## Orchestrator API errors (RFC 7807)
+
+From KB-IHMS `api-errors.mdc` — apply to **this repo's** FastAPI routes:
+
+- Every non-2xx response body is RFC 7807 ProblemDetails (`application/problem+json`). Never bare status codes; never 200 with error payload.
+- Route handlers validate input, delegate to one checkout/saga method, map domain result to response. No business logic in routes.
+
+| Status | Orchestrator use |
+|--------|------------------|
+| 201 | Session created, hold placed, order confirmed |
+| 404 | Session/hold not found |
+| 409 | Hold expired, confirm blocked, conflict state |
+| 422 | Validation failure (empty cart, invalid quantity) |
+| 502/503 | Upstream unavailable (after retries exhausted) |
+| 500 | Unexpected exception only |
+
+Include `correlation_id` in ProblemDetails `extensions` when available.
+
+---
+
+## Upstream contract tests (KB-IHMS)
+
+Gateway contract tests must assert IHMS wire behaviour per KB-IHMS `api-errors.mdc`:
+
+- POST `/api/holds` → 201 + hold body; 409 insufficient stock; 422 validation
+- GET `/api/holds/{id}` → 200 active hold; 404 missing; 409 expired
+- DELETE `/api/holds/{id}` → 204 release; 409 already released
+- Enum/status fields: assert JSON shape matches IHMS Contracts (string status, not numeric)
+
+EC-OPS contract tests: POST `/orders` 201, 422 validation, auth Bearer header shape.
+
+---
+
+## Manual HTTP verification (`http/`)
+
+From KB-IHMS `http-requests.mdc` — add when Phase 2+ endpoints land:
+
+```
+http/
+  http-client.env.json   # baseUrl per environment
+  health.http
+  sessions.http          # checkout flow
+  upstream-smoke.http    # optional IHMS/EC-OPS direct checks in full stack
+```
+
+- Use `{{baseUrl}}` from env json; never hardcode URLs.
+- Name requests with `# @name createSession` for chained variables.
+- Document expected status in comments above each request.
+- At least one happy path + one error path per endpoint.
+- `.http` files complement pytest — **never replace** automated tests; CI runs pytest only.
 
 ---
 
@@ -211,6 +266,12 @@ Config: `pyproject.toml` — target Python 3.12, line length 100.
 
 ## Test naming and structure
 
+From KB-IHMS `testing.mdc`, adapted for pytest:
+
+- **Mock at gateway boundary** — tests pass with no IHMS, EC-OPS, or Redis running (except e2e).
+- Structure: Arrange / Act / Assert. No shared mutable state — fresh mocks per test.
+- Naming: `test_{method}_{scenario}_{expected}` (example: `test_confirm_order_fails_compensates_hold`).
+
 ```python
 # unit
 def test_idempotency_returns_cached_response_when_key_reused(): ...
@@ -229,7 +290,16 @@ async def test_post_confirm_returns_201_with_order_id(): ...
 async def test_full_checkout_happy_path(): ...
 ```
 
-Use descriptive names. One logical assertion cluster per test.
+### Minimum saga coverage (Phase 3+)
+
+- Hold fails early (409/404) — no hold on session
+- Happy path confirm
+- Order fails after hold → compensation
+- Hold expired before confirm
+- Duplicate confirm with idempotency key
+- Reconciliation after order timeout
+
+Use `httpx` ASGITransport for integration; `respx` or mock gateway for component.
 
 ---
 

@@ -41,8 +41,21 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - KB-IHMS `docs/OMS-INTEGRATION.md` cross-repo links
 - KB-IHMS `oms-integration.mdc` update
 
+### 2026-07-04 — Merge KB-IHMS cursor rules into 4-rule set
+
+**User query:** Refer cursor rules from KB-IHMS repo; bring in missing or merge duplicates.
+
+**Actions:**
+- Merged KB-IHMS `git-workflow`, `github-project`, `oms-integration` → `01-workflow.mdc`
+- Merged `architecture`, `hold-lifecycle`, `caching-events`, `frontend` → `02-architecture.mdc`
+- Merged `testing`, `api-errors`, `http-requests` → `03-quality.mdc`
+- Merged `ai-documentation` → `04-documentation.mdc`
+- Updated AGENTS.md with KB-IHMS → orchestrator rule lineage table
+- Excluded `dotnet-style`, `mongodb` (IHMS-specific)
+
 ## User queries archive
 
 | Date | Query summary |
 |------|---------------|
 | 2026-07-04 | IHMS-OMS project path + v4 integration plan |
+| 2026-07-04 | Merge KB-IHMS cursor rules into orchestrator 4-rule set |

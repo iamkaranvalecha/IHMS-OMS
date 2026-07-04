@@ -10,6 +10,8 @@ alwaysApply: false
 # 02 — Architecture
 
 Enforces module boundaries for checkout-orchestrator.
+Merged from KB-IHMS [`architecture.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/architecture.mdc), [`oms-integration.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/oms-integration.mdc), [`hold-lifecycle.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/hold-lifecycle.mdc), [`caching-events.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/caching-events.mdc), and [`frontend.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/frontend.mdc).
+
 Canonical decisions: [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 ---
@@ -30,6 +32,13 @@ Canonical decisions: [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) and [
 - **Orchestrator**: all integration — saga, catalog, BFF, UI
 
 Never add integration logic to frozen repos. Never call upstreams from UI.
+
+### Integration boundary (from KB-IHMS architecture.mdc)
+
+- External systems integrate via **published API contracts** and **RabbitMQ events** — not by referencing IHMS Domain entities.
+- Orchestrator is the **OMS-side adapter**: HTTP clients and (Phase 5) event consumers live here only.
+- Do not add IHMS/EC-OPS project references or upstream-specific logic outside `src/gateway/`.
+- Gateway maps wire DTOs to orchestrator domain types — saga never imports upstream response shapes directly.
 
 ---
 
@@ -106,6 +115,27 @@ class EcOpsClient:
 - Map HTTP errors to domain exceptions for saga
 - **No business logic** — no saga state, no catalog mapping
 
+### KB-IHMS hold lifecycle (consumer contract)
+
+From KB-IHMS `hold-lifecycle.mdc` — gateway and saga must respect these semantics:
+
+- Hold states: **Active**, **Released**, **Expired** only.
+- Expiry detected on IHMS read — expired hold returns conflict (HTTP **409**).
+- Missing hold or product → **404**; insufficient stock / already released / expired → **409**; validation → **422**.
+- Multi-item hold: IHMS restores partial deductions on failure — orchestrator should not assume partial holds exist.
+- **Never reimplement expiry or restore logic** in orchestrator — delegate to IHMS API.
+
+IHMS endpoints (gateway targets):
+
+| Method | Path | Success | Error statuses |
+|--------|------|---------|----------------|
+| POST | `/api/holds` | 201 | 404, 409, 422 |
+| GET | `/api/holds/{holdId}` | 200 | 404, 409 (expired) |
+| DELETE | `/api/holds/{holdId}` | 204 | 404, 409 |
+| GET | `/api/inventory` | 200 | — |
+
+Non-2xx IHMS bodies are RFC 7807 ProblemDetails — parse `detail` for logging, not for business branching beyond status code.
+
 ---
 
 ## CatalogProvider — anti-corruption layer
@@ -181,11 +211,18 @@ async def health(request: Request) -> dict: ...
 
 ## Frontend boundary
 
-`frontend/` communicates with orchestrator REST API only:
+From KB-IHMS `frontend.mdc`, adapted for orchestrator UI (Phase 4):
 
-- Base URL: `VITE_API_URL` (default `http://localhost:8000`)
-- Never embed IHMS or EC-OPS URLs in React code
-- Correlation/trace display in dev panel optional (Phase 4)
+- TypeScript strict mode. Never use `any` — type every orchestrator API response.
+- All server state through **TanStack Query**. No raw `fetch` in components.
+- Normalize API responses at `frontend/src/api/` client boundary — components never parse raw wire JSON.
+- Base URL from `import.meta.env.VITE_API_URL` — **never** hardcode orchestrator, IHMS, or EC-OPS URLs.
+- **Orchestrator API only** — never call IHMS or EC-OPS from React.
+- Loading + error states required; surface ProblemDetails `detail` on errors.
+- After confirm/cancel mutations, invalidate session and catalog queries.
+- Cancel/abandon requires confirmation step before mutation.
+- Vitest tests for normalize helpers and critical render paths; run `npm test` before PR when frontend touched.
+- Optional dev panel: display `correlation_id` and `trace_id` from API responses.
 
 ---
 
@@ -198,6 +235,20 @@ docker/compose.base.yml   # networks, anchors
 docker/compose.dev.yml    # orchestrator + optional UI
 docker/compose.full.yml   # + IHMS + EC-OPS for E2E
 ```
+
+---
+
+## RabbitMQ events (Phase 5 stretch)
+
+From KB-IHMS `caching-events.mdc` — orchestrator may consume, not publish:
+
+- Exchange: `inventory.holds`
+- Routing keys: `hold.created`, `hold.released`, `hold.expired`
+- Payload includes: `holdId`, `status`, `items`, `createdAt`, `expiresAt`, trigger reason
+- Consumer must not call back to IHMS for context already in the event
+- Broker outage must not fail REST checkout path — events are supplementary
+
+Implement in a dedicated module (e.g. `src/events/`) behind an interface; not in gateway HTTP client.
 
 ---
 

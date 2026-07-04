@@ -10,7 +10,9 @@ alwaysApply: false
 # 04 — Documentation
 
 Living documentation obligations for checkout-orchestrator.
-This repo uses **AI-USAGE.md only** — no `AI-DECLARATION.md`.
+Merged from KB-IHMS [`ai-documentation.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/ai-documentation.mdc) and [`oms-integration.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/oms-integration.mdc) doc triggers.
+
+This repo uses **AI-USAGE.md only** — no `AI-DECLARATION.md` (KB-IHMS keeps AI-DECLARATION for the assignment).
 
 ---
 
@@ -34,13 +36,31 @@ This repo uses **AI-USAGE.md only** — no `AI-DECLARATION.md`.
 
 ## Mandatory: AI-USAGE.md
 
-Update before **every** PR:
+From KB-IHMS `ai-documentation.mdc` — update before **every** PR:
 
-1. Session log entry — date, scope, actions taken
-2. Verification record — verify.sh result
-3. Human audit checklist status
+### Required sections
 
-Pattern from KB-IHMS: strategy, human audit, verification table, session log, user queries archive.
+1. **AI Strategy** — tools, context (rules, ROADMAP, project board)
+2. **Human Audit** — table of accepted vs rejected AI suggestions with reasons
+3. **Verification** — `bash scripts/verify.sh` output, CI, manual steps, `http/` if used
+4. **Session log** — date, work summary, AI role (append-only)
+5. **User queries** — prompts/questions that shaped the work (update before each PR)
+
+### Writing rules
+
+- Be specific: name files, commands, and incorrect suggestions that were fixed.
+- Never claim tests pass without showing verify.sh / pytest output in the session.
+- Record rejections — they demonstrate human judgment.
+- Keep session log chronological; one row per session is enough.
+- Do not duplicate full rule text — link to `.cursor/rules/` instead.
+
+### Pre-PR checklist (from ai-documentation.mdc)
+
+- [ ] `bash scripts/verify.sh` passed (paste summary)
+- [ ] **AI-USAGE.md** updated (session log + user queries + audit/verification)
+- [ ] `http/*.http` updated if orchestrator API changed (Phase 2+)
+- [ ] PR body references correct issue (`Closes #N`)
+- [ ] If adding rule content, list in AGENTS.md read order and CLAUDE.md rules table
 
 Do not create AI-DECLARATION.md in this repo.
 

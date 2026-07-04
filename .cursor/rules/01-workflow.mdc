@@ -7,7 +7,19 @@ alwaysApply: true
 # 01 — Workflow
 
 This rule governs how work enters and exits the checkout-orchestrator repo (IHMS-OMS).
+Merged from KB-IHMS [`git-workflow.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/git-workflow.mdc), [`github-project.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/github-project.mdc), and [`oms-integration.mdc`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/.cursor/rules/oms-integration.mdc) (orchestrator-side).
+
 Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.md) for current phase.
+
+---
+
+## Hard rules (from KB-IHMS git-workflow)
+
+- **Never commit on `main` or `master`.** Create or checkout a feature branch first.
+- **Never push to `main` or `master`.** Push the feature branch and open a PR.
+- **Issue before code.** Create a GitHub issue on [Project #4](https://github.com/users/iamkaranvalecha/projects/4) *before* the first commit for new work. No PR without a linked issue.
+- **"Commit and push"** means: commit on feature branch → push branch → open PR with `Closes #N`. It never means push to `main`.
+- **Exception:** push/merge to `main` only when the user explicitly says to push directly to main or merge without a PR.
 
 ---
 
@@ -120,19 +132,28 @@ Imperative mood, complete sentences in body, reference issue when helpful.
 
 ---
 
-## Phase gates and ROADMAP
+## OMS integration phase gates (v4 ROADMAP)
 
-When a phase gate passes (see [ROADMAP.md](../ROADMAP.md)):
+Aligned with KB-IHMS `oms-integration.mdc` — orchestrator owns delivery; IHMS/EC-OPS frozen.
 
-1. Update ROADMAP: move phase to Completed with date
-2. Set Next phase as Current
-3. Do **not** update AGENTS.md with phase tables — ROADMAP only
+| Phase | Goal | Gate before next phase |
+|-------|------|------------------------|
+| 0 | Baseline lock | KB-IHMS green; EC-OPS noted; no upstream code changes |
+| 1 | Scaffold | `verify.sh` green; DECISION-MATRIX; 4 rules; ROADMAP Phase 1 |
+| 2 | Gateway + session + catalog | IhmsClient, EcOpsClient; contract + component tests |
+| 3 | Saga + flows | place-hold, confirm, cancel, compensate, reconciliation |
+| 4 | React UI | Orchestrator API only; optional dev correlation panel |
+| 5 | Full stack + E2E | compose.full.yml; all FAILURE-SCENARIOS rows tested |
 
-Phase 1 gate example:
-- verify.sh green
-- DECISION-MATRIX reviewable
-- Four cursor rules present
-- ROADMAP shows correct current phase
+Append learnings to [ROADMAP.md](../ROADMAP.md) and [AI-USAGE.md](../AI-USAGE.md) after each gate — not to KB-IHMS unless docs-only cross-repo PR.
+
+### Integration principles (binding)
+
+- **IHMS owns hold lifecycle** — stock deduction, expiry, release, events. Orchestrator coordinates checkout; it does not reimplement hold rules.
+- **Contract-first** — integrate via IHMS REST (`POST/GET/DELETE /api/holds`) and optionally RabbitMQ events in Phase 5.
+- **Adapter boundary** — all upstream HTTP in `src/gateway/` only; no OMS/IHMS types leaking into UI.
+- **Additive upstream changes** — none in frozen repos; orchestrator adapts to published contracts.
+- **Quality bar** — `bash scripts/verify.sh` must pass before the next phase starts.
 
 ---
 
@@ -151,14 +172,56 @@ Orchestrator PR and KB-IHMS doc PR may land in either order but both should refe
 
 ## Labels and project board
 
+Project board: https://github.com/users/iamkaranvalecha/projects/4
+
+This is the single source of truth for what to work on (from KB-IHMS `github-project.mdc`).
+
+### Status columns (use exactly)
+
+`Backlog` → `Ready` → `In progress` → `In review` → `Done`
+
+Priority order: P0, then P1, then P2.
+
+### Before starting work
+
+```bash
+gh project item-list 4 --owner iamkaranvalecha --format json
+```
+
+- Pick the highest-priority item in "Ready" or "In progress". If none exist, ask the user before creating ad-hoc work.
+- Read linked issues for acceptance criteria before writing code.
+- Scope branches, commits, and PRs to one project item.
+
+### Creating issues
+
+```bash
+gh issue create --title "[Phase N] ..." --body "..." --project "KB-IHMS" \
+  --label "priority/p1,size/m,integration/oms"
+```
+
+Or use `.github/ISSUE_TEMPLATE/integration-task.md`.
+
 | Label | Use |
 |-------|-----|
-| `integration/oms` | All orchestrator integration work |
+| `integration/oms` | All orchestrator integration work (required) |
+| `priority/p0` … `priority/p2` | Priority |
+| `size/xs` … `size/xl` | Effort |
+| `area/backend`, `area/frontend`, `area/docs`, `area/infra` | Scope |
 | `phase-1` … `phase-5` | Optional phase filter |
 | `documentation` | Docs-only changes |
 | `blocked` | Waiting on upstream or user decision |
 
-Add issues to Project #4 and set status: Todo → In Progress → Done on merge.
+### Project automation
+
+KB-IHMS `.github/workflows/project-sync.yml` pattern (add to IHMS-OMS when ready):
+
+- **Issues opened/labeled** → add to project, Status = Backlog
+- **PR opened** → Status = In review (branch `cursor/{N}-*`)
+- **PR merged** → Status = Done on PR and linked issue
+
+Do not manually fight the workflow — set Status via board or rely on automation.
+
+**`PROJECT_PAT` secret:** User-owned Project #4 requires a **classic PAT** with `project`, `read:project`, `repo`, and `read:org` scopes. Fine-grained PATs cannot access user-owned projects. Until set, sync skips gracefully and CI stays green.
 
 ---
 
@@ -182,12 +245,12 @@ Production hotfix (post Phase 5):
 
 ---
 
-## Quick checklist before opening PR
+## Pre-commit checklist (agents)
 
-- [ ] Issue exists and is linked
-- [ ] Branch name follows `cursor/{issue}-*-bf51`
-- [ ] `bash scripts/verify.sh` passed
-- [ ] AI-USAGE.md updated
-- [ ] ROADMAP updated if phase gate passed
-- [ ] PR body has `Closes #N`
-- [ ] Upstream repos untouched
+1. On a feature branch (not `main`)
+2. Linked issue exists and is on Project #4
+3. `bash scripts/verify.sh` passes (ruff + unit + contract + component + integration)
+4. `cd frontend && npm test && npm run build` when frontend changed (Phase 4+)
+5. **[AI-USAGE.md](../AI-USAGE.md)** updated — see [04-documentation.mdc](04-documentation.mdc)
+
+---
