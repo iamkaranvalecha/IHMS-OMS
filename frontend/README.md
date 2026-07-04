@@ -38,3 +38,7 @@ Open http://localhost:5173
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_API_URL` | (empty = same origin) | Orchestrator base URL |
+
+## Docker / compose
+
+The production UI image is built without a baked-in API URL. In compose, `frontend/nginx.conf` proxies `/health`, `/catalog`, and `/sessions` to the `orchestrator` service so relative API paths work from the browser.
