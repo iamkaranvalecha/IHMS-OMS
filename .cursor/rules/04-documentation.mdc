@@ -40,7 +40,7 @@ From KB-IHMS `ai-documentation.mdc` — update before **every** PR:
 
 ### Required sections
 
-1. **AI Strategy** — tools, context (rules, ROADMAP, project board)
+1. **AI Strategy** — tools, context (rules, ROADMAP, [Project #5 board](https://github.com/users/iamkaranvalecha/projects/5/views/1))
 2. **Human Audit** — table of accepted vs rejected AI suggestions with reasons
 3. **Verification** — `bash scripts/verify.sh` output, CI, manual steps, `http/` if used
 4. **Session log** — date, work summary, AI role (append-only)

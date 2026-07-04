@@ -17,7 +17,7 @@ Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.
 
 - **Never commit on `main` or `master`.** Create or checkout a feature branch first.
 - **Never push to `main` or `master`.** Push the feature branch and open a PR.
-- **Issue before code.** Create a GitHub issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5) *before* the first commit for new work. No PR without a linked issue.
+- **Issue before code.** Create a GitHub issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1) *before* the first commit for new work. No PR without a linked issue.
 - **"Commit and push"** means: commit on feature branch → push branch → open PR with `Closes #N`. It never means push to `main`.
 - **Exception:** push/merge to `main` only when the user explicitly says to push directly to main or merge without a PR.
 
@@ -43,7 +43,7 @@ Do not bundle KB-IHMS changes with orchestrator feature PRs unless explicitly co
    - Label: `integration/oms`
    - Template: `.github/ISSUE_TEMPLATE/integration-task.md`
    - Include: phase number, UC-ID, acceptance criteria, required test tiers
-3. Link the issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5).
+3. Link the issue on [Project #5](https://github.com/users/iamkaranvalecha/projects/5/views/1).
 4. Trivial fixes (typo, single-line doc) may skip issue — note in PR body.
 
 ### Issue title convention
@@ -172,7 +172,7 @@ Orchestrator PR and KB-IHMS doc PR may land in either order but both should refe
 
 ## Labels and project board
 
-Project board: https://github.com/users/iamkaranvalecha/projects/5
+Project board: https://github.com/users/iamkaranvalecha/projects/5/views/1
 
 This is the single source of truth for what to work on (from KB-IHMS `github-project.mdc`).
 
