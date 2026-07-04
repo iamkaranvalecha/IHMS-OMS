@@ -26,6 +26,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 4 React UI | passed | backend verify.sh 46 tests; frontend 7 Vitest + build |
 | 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
+| 2026-07-04 | Bug-finding automation — frontend confirm idempotency | passed | `bash scripts/verify.sh`; frontend 9 Vitest + build |
 
 ## Session log
 
@@ -181,6 +182,26 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - `bash scripts/verify.sh` → passed (ruff; 20 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
 - Docker, Podman, and nginx binaries were unavailable in the runner, so live container syntax validation was not performed here.
 
+### 2026-07-04 — Frontend confirm idempotency bug fix
+
+**User query:** Deep bug-finding automation for PR #11; fix only critical correctness bugs.
+
+**Bug and impact:**
+- `frontend/src/App.tsx` generated a new `Idempotency-Key` on every confirm click. If EC-OPS created the order but the browser lost the response, a retry no longer hit the saga idempotency cache and surfaced a false 409 instead of the confirmed order.
+- Because the active session ID was only in React state, refreshing after a lost confirm response hid the completed session and allowed a user to start a duplicate checkout.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected fixing only the button double-click path; the same key must survive failed same-page retries and a page refresh while the checkout is still active.
+
+**Actions:**
+- Store one confirm idempotency key per active checkout in memory and `sessionStorage`.
+- Resume the active session/key after refresh and clear the stored checkout once the session reaches a terminal state or is abandoned.
+- Added Vitest coverage for same-page confirm retry and refresh/resume with the original idempotency key.
+
+**Verification:**
+- `cd frontend && npm test && npm run build` → 9 Vitest tests passed; production build passed.
+- `bash scripts/verify.sh` → passed (ruff; 20 unit; 7 contract; 7 component; 12 integration; e2e skipped unless `STACK=1`).
+
 ## User queries archive
 
 | Date | Query summary |
@@ -193,3 +214,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Deep bug-finding automation on PR #6 — saga concurrency races |
 | 2026-07-04 | Deep bug-finding automation on PR #6 — order timeout cleanup |
 | 2026-07-04 | Deep bug-finding automation on PR #11 — frontend container API proxy |
+| 2026-07-04 | Deep bug-finding automation on PR #11 — frontend confirm idempotency |
