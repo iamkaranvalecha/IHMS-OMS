@@ -9,6 +9,7 @@ from src.catalog.provider import CatalogProvider
 from src.gateway.ecops_client import EcOpsClient
 from src.gateway.ecops_models import OrderCreate, OrderItemCreate, OrderResponse
 from src.gateway.exceptions import (
+    GatewayError,
     GatewayTimeoutError,
     HoldConflictError,
     HoldNotFoundError,
@@ -162,22 +163,13 @@ class SagaCoordinator:
                 await self._compensate_and_fail_locked(session, headers)
                 raise
             except GatewayTimeoutError:
-                order = await find_order_by_reference(
-                    self.ecops,
-                    session.correlation_id,
-                    headers,
-                )
-                if order is not None:
-                    return self._finalize_success_locked(
-                        session,
-                        order,
-                        idempotency_key,
-                        SessionState.RECONCILED,
-                    )
                 await self._compensate_and_fail_locked(session, headers)
                 raise CompensationIncompleteError(
                     "Order creation timed out and could not be reconciled; hold release attempted",
                 ) from None
+            except GatewayError:
+                await self._compensate_and_fail_locked(session, headers)
+                raise
 
     async def abandon(
         self,
