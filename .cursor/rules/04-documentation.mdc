@@ -1,0 +1,253 @@
+---
+description: Documentation — living docs triggers, AI-USAGE, ROADMAP, sequences, CLAUDE.md slim
+globs:
+  - docs/**
+  - "*.md"
+  - .cursor/rules/**
+alwaysApply: false
+---
+
+# 04 — Documentation
+
+Living documentation obligations for checkout-orchestrator.
+This repo uses **AI-USAGE.md only** — no `AI-DECLARATION.md`.
+
+---
+
+## Document hierarchy
+
+| Doc | Volatility | Owner updates |
+|-----|------------|---------------|
+| [CLAUDE.md](../CLAUDE.md) | Low | Keep ≤150 lines; mission, commands, gates |
+| [AGENTS.md](../AGENTS.md) | Low | Stable agent guide — **no phase table** |
+| [ROADMAP.md](../ROADMAP.md) | High | Every phase gate |
+| [AI-USAGE.md](../AI-USAGE.md) | High | **Every PR** |
+| [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) | Medium | Architectural pivots |
+| [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) | Medium | Module changes |
+| [docs/FAILURE-SCENARIOS.md](../docs/FAILURE-SCENARIOS.md) | Medium | New failure modes |
+| [docs/OBSERVABILITY.md](../docs/OBSERVABILITY.md) | Medium | ID propagation changes |
+| [docs/PERFORMANCE.md](../docs/PERFORMANCE.md) | Medium | Timeout/retry changes |
+| [docs/sequences/*.md](../docs/sequences/) | Medium | Flow changes |
+| [docs/adr/*.md](../docs/adr/) | Low-Medium | Architectural decisions |
+
+---
+
+## Mandatory: AI-USAGE.md
+
+Update before **every** PR:
+
+1. Session log entry — date, scope, actions taken
+2. Verification record — verify.sh result
+3. Human audit checklist status
+
+Pattern from KB-IHMS: strategy, human audit, verification table, session log, user queries archive.
+
+Do not create AI-DECLARATION.md in this repo.
+
+---
+
+## ROADMAP updates
+
+Update [ROADMAP.md](../ROADMAP.md) when:
+
+- A phase gate passes → move to Completed with date
+- Current phase changes → update Current section
+- Blockers discovered → note in Current or Next
+
+Do **not** put phase tables in AGENTS.md or CLAUDE.md.
+
+### Phase gate example (Phase 1)
+
+```markdown
+## Completed
+| Phase 1 | 2026-07-XX | Scaffold gate passed |
+
+## Current phase: Phase 2 — Gateway + session + catalog
+```
+
+---
+
+## Sequence documentation
+
+Each checkout flow has a dedicated file in `docs/sequences/`:
+
+| File | Flow |
+|------|------|
+| checkout.md | Happy path UC-3 → UC-5 |
+| cancel.md | Abandon UC-6 |
+| expiry.md | Hold expires UC-7 |
+| compensation.md | Order fails after hold |
+| reconciliation.md | Timeout ambiguous outcome |
+
+### Triggers to update sequences
+
+- New API endpoint affecting checkout flow
+- Changed order of saga steps
+- New error branch or HTTP status mapping
+- Reconciliation logic change
+
+Each sequence file includes:
+- Use case IDs
+- Mermaid sequence diagram
+- Link back to FAILURE-SCENARIOS row
+- Phase gate checklist (optional)
+
+**Do not** embed all sequences in ARCHITECTURE.md — link to sequence files instead.
+
+---
+
+## FAILURE-SCENARIOS matrix
+
+[docs/FAILURE-SCENARIOS.md](../docs/FAILURE-SCENARIOS.md) holds the table; sequences hold the detail.
+
+When adding a failure mode:
+1. Add row to matrix (Detection, Action, Sequence link)
+2. Create or update sequence file
+3. Add test coverage note
+4. Reference from saga code comments only if non-obvious
+
+---
+
+## ADR process
+
+Location: `docs/adr/ADR-NNN-short-title.md`
+
+Create or finalize ADR when:
+- Separate orchestrator repo (ADR-001) — done
+- New integration pattern (events vs REST)
+- Session storage change (Redis)
+- Reconciliation strategy change
+
+ADR template sections:
+- Status (Proposed / Accepted / Superseded)
+- Context
+- Decision
+- Consequences
+
+Phase 1 carries stubs; finalize when implementing.
+
+---
+
+## DECISION-MATRIX and ARCHITECTURE
+
+Update [DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) when:
+- Choosing between integration alternatives
+- Adding a new upstream or communication channel
+
+Update [ARCHITECTURE.md](../docs/ARCHITECTURE.md) when:
+- Adding/removing modules
+- Changing dependency direction
+- Session model fields change
+
+Keep DECISION-MATRIX to one-screen table + links — not a duplicate of ARCHITECTURE.
+
+---
+
+## OBSERVABILITY and PERFORMANCE
+
+Update [OBSERVABILITY.md](../docs/OBSERVABILITY.md) when:
+- Adding/removing propagated headers
+- Changing log field schema
+- Adding OpenTelemetry
+
+Update [PERFORMANCE.md](../docs/PERFORMANCE.md) when:
+- Timeout values change
+- Retry policy changes
+- Connection pool strategy changes
+
+---
+
+## CLAUDE.md discipline
+
+[CLAUDE.md](../CLAUDE.md) must stay **≤150 lines**.
+
+Contains only:
+- Mission (one paragraph + repo links)
+- Commands (verify, pytest, compose)
+- Read order
+- Quality gates pointer
+- Never do / Always do lists
+- Module map one-liner
+- Key doc links table
+
+Move detailed content to ARCHITECTURE.md, ADRs, or cursor rules.
+
+---
+
+## README
+
+[README.md](../README.md) is the human entry point:
+- Portfolio positioning (three repos)
+- Quick start commands
+- Documentation map (links to all major docs)
+- Current status one-liner pointing to ROADMAP
+
+Update README when Phase 5 completes for portfolio-ready state.
+
+---
+
+## Cross-repo documentation (KB-IHMS)
+
+KB-IHMS [`docs/OMS-INTEGRATION.md`](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/docs/OMS-INTEGRATION.md) should link to orchestrator docs:
+
+- This repo URL
+- docs/DECISION-MATRIX.md
+- docs/sequences/
+- AI-USAGE.md (note: orchestrator has no AI-DECLARATION)
+
+KB-IHMS keeps its own AI-DECLARATION for the assignment.
+
+Do not duplicate full ADR bodies in KB-IHMS — links only.
+
+KB-IHMS `oms-integration.mdc` should link to this repo's 4-rule set and verify.sh.
+
+---
+
+## PR documentation checklist
+
+From `.github/pull_request_template.md`:
+
+```markdown
+## Documentation
+- [ ] AI-USAGE.md updated
+- [ ] ROADMAP.md — if phase gate passed
+- [ ] sequences/ + FAILURE-SCENARIOS — if flow changed
+- [ ] PERFORMANCE.md — if timeout/retry changed
+- [ ] ADR — if architectural
+```
+
+Agent must check applicable boxes honestly.
+
+---
+
+## Documentation anti-patterns
+
+- Phase status in AGENTS.md (use ROADMAP)
+- Monolithic sequence doc (use sequences/ directory)
+- AI-DECLARATION.md in orchestrator
+- Copying entire ADR into KB-IHMS
+- Stale ROADMAP (update on gate pass)
+- Empty AI-USAGE session log for AI-assisted PRs
+- Embedding timeout values only in code — also PERFORMANCE.md
+
+---
+
+## Living docs review checklist
+
+Before PR merge:
+
+- [ ] AI-USAGE.md session log entry added
+- [ ] ROADMAP current if phase gate passed
+- [ ] Sequence doc matches implemented flow
+- [ ] FAILURE-SCENARIOS row exists for new failure modes
+- [ ] CLAUDE.md still under 150 lines
+- [ ] DECISION-MATRIX accurate
+- [ ] ADR created if architectural decision made
+
+---
+
+## Related rules
+
+- Workflow/PR process: [01-workflow.mdc](01-workflow.mdc)
+- Architecture: [02-architecture.mdc](02-architecture.mdc)
+- Testing: [03-quality.mdc](03-quality.mdc)

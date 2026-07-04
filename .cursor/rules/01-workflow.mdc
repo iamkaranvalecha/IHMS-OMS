@@ -1,0 +1,193 @@
+---
+description: Workflow — issues, branches, PRs, Project #4, git ownership
+globs:
+alwaysApply: true
+---
+
+# 01 — Workflow
+
+This rule governs how work enters and exits the checkout-orchestrator repo (IHMS-OMS).
+Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.md) for current phase.
+
+---
+
+## Repository scope
+
+| Repo | Agent may change? |
+|------|-------------------|
+| IHMS-OMS (this repo) | Yes — all integration work |
+| KB-IHMS | Docs/rules only — cross-repo PR, no assignment code |
+| EC-OPS | Never — frozen assignment |
+
+When KB-IHMS docs need updating, open a separate issue and PR in that repo.
+Do not bundle KB-IHMS changes with orchestrator feature PRs unless explicitly coordinated.
+
+---
+
+## Issue before code
+
+1. Check [ROADMAP.md](../ROADMAP.md) for the active phase.
+2. Open a GitHub Issue before non-trivial work:
+   - Label: `integration/oms`
+   - Template: `.github/ISSUE_TEMPLATE/integration-task.md`
+   - Include: phase number, UC-ID, acceptance criteria, required test tiers
+3. Link the issue on [Project #4](https://github.com/users/iamkaranvalecha/projects/4).
+4. Trivial fixes (typo, single-line doc) may skip issue — note in PR body.
+
+### Issue title convention
+
+```
+[Phase N] Short description (UC-X)
+```
+
+Examples:
+- `[Phase 1] Scaffold checkout-orchestrator v4`
+- `[Phase 2] IhmsClient with observability headers (UC-3)`
+- `[Phase 3] Reconciliation after order timeout`
+
+---
+
+## Branching
+
+### Branch naming
+
+```
+cursor/{issue-number}-{short-description}-bf51
+```
+
+Examples:
+- `cursor/1-orchestrator-scaffold-bf51`
+- `cursor/12-gateway-ihms-client-bf51`
+
+Use lowercase and hyphens. The `-bf51` suffix is required for cloud agent branches.
+
+### Rules
+
+- **Never push directly to `main`.**
+- One issue per branch unless issues are explicitly merged by maintainer.
+- Rebase or merge main before opening PR if branch is stale.
+- Delete branch after merge (maintainer or agent on request).
+
+---
+
+## Pull requests
+
+### Required PR elements
+
+1. Title references phase/issue: `[Phase N] Description`
+2. Body includes `Closes #N` (or `Closes #N, #M` if multi-issue — rare)
+3. Verification section with `scripts/verify.sh` output summary
+4. Documentation checklist from `.github/pull_request_template.md`
+5. [AI-USAGE.md](../AI-USAGE.md) updated in the same PR
+
+### PR review gates
+
+| Gate | Requirement |
+|------|-------------|
+| CI | `.github/workflows/ci.yml` green |
+| verify.sh | Same command locally: `bash scripts/verify.sh` |
+| Upstream | Confirm KB-IHMS and EC-OPS untouched (or docs-only PR linked) |
+| Docs | Living doc triggers per 04-documentation.mdc |
+
+### Draft PRs
+
+Use draft PRs for work-in-progress that needs early feedback.
+Mark ready for review only when verify.sh passes.
+
+---
+
+## Git ownership
+
+- **User owns git operations** on their machine — merge, release tags, branch protection.
+- Agent may: create branch, commit, push feature branch, open/update PR.
+- Agent must not: force-push main, delete protected branches, merge without user approval unless explicitly instructed.
+
+---
+
+## Commit messages
+
+Use clear, descriptive commits:
+
+```
+Phase 1: scaffold gateway module stubs and contract test layout
+
+- Add src/gateway/ package
+- Add tests/contract/test_ihms_wire_format.py stub
+- Update ROADMAP Phase 1 checklist
+```
+
+Imperative mood, complete sentences in body, reference issue when helpful.
+
+---
+
+## Phase gates and ROADMAP
+
+When a phase gate passes (see [ROADMAP.md](../ROADMAP.md)):
+
+1. Update ROADMAP: move phase to Completed with date
+2. Set Next phase as Current
+3. Do **not** update AGENTS.md with phase tables — ROADMAP only
+
+Phase 1 gate example:
+- verify.sh green
+- DECISION-MATRIX reviewable
+- Four cursor rules present
+- ROADMAP shows correct current phase
+
+---
+
+## Cross-repo workflow (KB-IHMS docs)
+
+For `docs/OMS-INTEGRATION.md` and `oms-integration.mdc` updates:
+
+1. Separate issue in KB-IHMS repo
+2. Branch in KB-IHMS (user naming convention)
+3. Links only — no duplicate ADR bodies in KB-IHMS
+4. Point to orchestrator: DECISION-MATRIX, sequences/, AI-USAGE, 4-rule set
+
+Orchestrator PR and KB-IHMS doc PR may land in either order but both should reference the integration milestone.
+
+---
+
+## Labels and project board
+
+| Label | Use |
+|-------|-----|
+| `integration/oms` | All orchestrator integration work |
+| `phase-1` … `phase-5` | Optional phase filter |
+| `documentation` | Docs-only changes |
+| `blocked` | Waiting on upstream or user decision |
+
+Add issues to Project #4 and set status: Todo → In Progress → Done on merge.
+
+---
+
+## Emergency / hotfix
+
+Production hotfix (post Phase 5):
+
+1. Issue with `hotfix` label
+2. Branch from main
+3. Minimal fix + regression test
+4. verify.sh + targeted e2e if flow touched
+5. Fast-track review — still requires AI-USAGE update
+
+---
+
+## What this rule does not cover
+
+- Module boundaries → [02-architecture.mdc](02-architecture.mdc)
+- Testing and saga → [03-quality.mdc](03-quality.mdc)
+- Living docs triggers → [04-documentation.mdc](04-documentation.mdc)
+
+---
+
+## Quick checklist before opening PR
+
+- [ ] Issue exists and is linked
+- [ ] Branch name follows `cursor/{issue}-*-bf51`
+- [ ] `bash scripts/verify.sh` passed
+- [ ] AI-USAGE.md updated
+- [ ] ROADMAP updated if phase gate passed
+- [ ] PR body has `Closes #N`
+- [ ] Upstream repos untouched

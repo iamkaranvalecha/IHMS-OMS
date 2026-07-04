@@ -1,0 +1,18 @@
+{
+  "products": [
+    {
+      "sku": "WIDGET-001",
+      "name": "Standard Widget",
+      "ihms_product_id": "prod-widget-001",
+      "ecops_item_code": "WIDGET-001",
+      "unit_price": 19.99
+    },
+    {
+      "sku": "GADGET-002",
+      "name": "Premium Gadget",
+      "ihms_product_id": "prod-gadget-002",
+      "ecops_item_code": "GADGET-002",
+      "unit_price": 49.99
+    }
+  ]
+}

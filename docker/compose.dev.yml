@@ -1,0 +1,32 @@
+# Orchestrator-only dev stack. Upstreams started separately or mocked.
+# Usage: docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.orchestrator
+    ports:
+      - "${ORCHESTRATOR_PORT:-8000}:8000"
+    environment:
+      IHMS_BASE_URL: ${IHMS_BASE_URL:-http://host.docker.internal:5000}
+      ECOPS_BASE_URL: ${ECOPS_BASE_URL:-http://host.docker.internal:8002}
+      CATALOG_PATH: /app/catalog/products.json
+    volumes:
+      - ../catalog:/app/catalog:ro
+    networks:
+      - checkout-net
+
+  ui:
+    profiles: ["ui"]
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${UI_PORT:-5173}:5173"
+    environment:
+      VITE_API_URL: http://localhost:${ORCHESTRATOR_PORT:-8000}
+    depends_on:
+      - orchestrator
+    networks:
+      - checkout-net

@@ -1,0 +1,234 @@
+---
+description: Architecture — module layout, dependency rules, frozen upstreams, CatalogProvider
+globs:
+  - src/**
+  - frontend/**
+  - docs/**
+alwaysApply: false
+---
+
+# 02 — Architecture
+
+Enforces module boundaries for checkout-orchestrator.
+Canonical decisions: [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
+
+---
+
+## Three-repo ecosystem
+
+```
+┌─────────────────┐     ┌──────────────────────┐     ┌─────────────┐
+│   KB-IHMS       │     │  checkout-orchestrator│     │   EC-OPS    │
+│   (.NET)        │◄────│  (FastAPI + React)    │────►│  (FastAPI)  │
+│   Holds         │     │  THIS REPO            │     │  Orders     │
+└─────────────────┘     └──────────────────────┘     └─────────────┘
+       FROZEN                    ACTIVE                    FROZEN
+```
+
+- **KB-IHMS**: inventory hold authority — `POST/DELETE /api/holds`
+- **EC-OPS**: order lifecycle — `POST /orders`, status transitions
+- **Orchestrator**: all integration — saga, catalog, BFF, UI
+
+Never add integration logic to frozen repos. Never call upstreams from UI.
+
+---
+
+## Module layout
+
+```
+src/
+  api/           # FastAPI app, routers, ObservabilityMiddleware
+  checkout/      # Workflow entry: create session, hold, confirm, abandon
+  catalog/       # CatalogProvider protocol, JsonCatalogProvider
+  gateway/       # IhmsClient, EcOpsClient — ONLY upstream HTTP
+  session/       # CheckoutSession model + in-memory store (Phase 1–3)
+  saga/          # Coordinator, steps, compensation, idempotency, reconciliation
+```
+
+```
+frontend/        # React — orchestrator API only
+catalog/         # products.json — SKU mapping data
+tests/           # unit, contract, component, integration, e2e
+docs/            # living architecture documentation
+```
+
+---
+
+## Dependency rule (strict)
+
+```
+api → checkout → saga + session + catalog → gateway
+```
+
+### Allowed imports
+
+| Module | May import |
+|--------|------------|
+| `api` | `checkout`, shared types, settings |
+| `checkout` | `saga`, `session`, `catalog` |
+| `saga` | `gateway`, `session`, `catalog` |
+| `catalog` | stdlib, pydantic — **not** gateway |
+| `gateway` | httpx, pydantic, settings — **not** saga/checkout |
+| `session` | pydantic — **not** gateway |
+
+### Forbidden
+
+- `api` importing `gateway` directly (must go through `checkout`)
+- `frontend` calling IHMS or EC-OPS URLs
+- `catalog` making HTTP calls
+- Circular imports between `saga` and `checkout`
+
+If tempted to import gateway from api for convenience — add a checkout service method instead.
+
+---
+
+## Gateway — sole upstream boundary
+
+All HTTP to KB-IHMS and EC-OPS lives in `src/gateway/`:
+
+```python
+# gateway/ihms_client.py — Phase 2
+class IhmsClient:
+    async def place_hold(self, product_id: str, qty: int, headers: ObservabilityHeaders) -> HoldResponse: ...
+    async def release_hold(self, hold_id: str, headers: ObservabilityHeaders) -> None: ...
+
+# gateway/ecops_client.py — Phase 2
+class EcOpsClient:
+    async def create_order(self, payload: OrderRequest, headers: ObservabilityHeaders) -> OrderResponse: ...
+    async def find_order_by_reference(self, ref: str, headers: ObservabilityHeaders) -> OrderResponse | None: ...
+```
+
+### Gateway responsibilities
+
+- Base URL from settings / environment
+- httpx AsyncClient lifecycle (shared pool — see PERFORMANCE.md)
+- Forward X-Request-ID, X-Correlation-ID, X-Trace-ID
+- Map HTTP errors to domain exceptions for saga
+- **No business logic** — no saga state, no catalog mapping
+
+---
+
+## CatalogProvider — anti-corruption layer
+
+Mapping between orchestrator SKUs and upstream identifiers stays in `src/catalog/`.
+
+```python
+class CatalogProduct(BaseModel):
+    sku: str
+    ihms_product_id: str
+    ecops_item_code: str
+    ...
+```
+
+- Data file: `catalog/products.json`
+- Protocol: `CatalogProvider` for test doubles
+- Implementation: `JsonCatalogProvider`
+
+**Rule:** EC-OPS order lines use `ecops_item_code`; IHMS holds use `ihms_product_id`.
+Saga/checkout resolves via catalog — never hardcode upstream IDs in saga steps.
+
+See [ADR-002](../docs/adr/ADR-002-catalog-provider.md), [ADR-003](../docs/adr/ADR-003-mapping-not-in-upstreams.md).
+
+---
+
+## Saga placement
+
+All distributed workflow logic in `src/saga/`:
+
+- `coordinator.py` — orchestrates steps
+- `steps/` — place_hold, create_order, compensate, reconcile
+- `idempotency.py` — confirm deduplication store
+- `exceptions.py` — domain errors for api layer
+
+Compensation is mandatory when order fails after hold.
+Reconciliation required after ambiguous POST /orders timeout.
+
+Do not implement saga logic in `api/routes.py` — routes delegate to `checkout` → `saga`.
+
+---
+
+## Session model
+
+`CheckoutSession` fields (Phase 2+):
+
+- `session_id`, `correlation_id`, `state`
+- `hold_id`, `order_id` (optional, set as flow progresses)
+- `idempotency_key` cache for confirm
+- `expires_at` from IHMS hold response
+
+Storage: in-memory dict Phase 1–3. Redis path documented in ADR-007 — not required now.
+
+---
+
+## API layer
+
+`src/api/` owns:
+
+- FastAPI app factory (`create_app`)
+- `ObservabilityMiddleware` — Request/Correlation/Trace IDs
+- Routers that delegate to checkout services
+- HTTP status mapping from domain exceptions
+- **No direct httpx calls**
+
+Health endpoint pattern (Phase 1):
+
+```python
+@health_router.get("/health")
+async def health(request: Request) -> dict: ...
+```
+
+---
+
+## Frontend boundary
+
+`frontend/` communicates with orchestrator REST API only:
+
+- Base URL: `VITE_API_URL` (default `http://localhost:8000`)
+- Never embed IHMS or EC-OPS URLs in React code
+- Correlation/trace display in dev panel optional (Phase 4)
+
+---
+
+## Docker compose layering
+
+Do not create a monolithic `docker-compose.yml`. Use layered files:
+
+```
+docker/compose.base.yml   # networks, anchors
+docker/compose.dev.yml    # orchestrator + optional UI
+docker/compose.full.yml   # + IHMS + EC-OPS for E2E
+```
+
+---
+
+## ADR triggers
+
+Create or update an ADR when:
+
+- Changing module boundaries
+- Adding new upstream communication (e.g. RabbitMQ consumer)
+- Changing session storage technology
+- Altering saga compensation strategy
+
+ADR stubs live in `docs/adr/`. Finalize ADR text when implementing the decision.
+
+---
+
+## Architecture review checklist
+
+Before merging structural changes:
+
+- [ ] No gateway imports outside allowed modules
+- [ ] No upstream URLs outside gateway/
+- [ ] Catalog mapping not duplicated in saga/api
+- [ ] New routes delegate to checkout, not gateway
+- [ ] DECISION-MATRIX still accurate or updated
+- [ ] Sequence doc exists for new user-facing flow
+
+---
+
+## Related rules
+
+- Workflow: [01-workflow.mdc](01-workflow.mdc)
+- Testing/saga quality: [03-quality.mdc](03-quality.mdc)
+- Doc updates: [04-documentation.mdc](04-documentation.mdc)
