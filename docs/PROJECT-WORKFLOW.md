@@ -23,10 +23,12 @@ Single source of truth for what to work on. Mirrors KB-IHMS Project #4 automatio
 
 User-owned Project #5 requires a **classic PAT** stored as repo secret `PROJECT_PAT`:
 
-- Scopes: `project`, `read:project`, `repo`, `read:org`
+- Scopes: **`project`**, **`read:project`**, **`repo`**, **`read:org`** — all four required
 - Fine-grained PATs cannot access user-owned projects
 
-Until configured, `project-sync.yml` skips gracefully (CI stays green).
+If `repo` is missing, CI logs show `Missing required token scopes: 'repo'`. PRs may sync to the board, but issue labels and issue status fields will not update.
+
+After updating the PAT, merge PR #2 (activates workflows on `main`) then run **Actions → Sync project board → Run workflow** to backfill issues #3 and #4.
 
 ### Status columns
 
