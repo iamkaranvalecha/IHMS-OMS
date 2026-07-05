@@ -5,6 +5,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# docker compose reads .env automatically. Force mock-stack defaults here so a
+# real-upstream .env cannot redirect E2E traffic away from the mock containers.
+export IHMS_BASE_URL="http://ihms:8080"
+export ECOPS_BASE_URL="http://ecops:8002"
+export ECOPS_BEARER_TOKEN=""
+export ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-8000}"
+export IHMS_PORT="${IHMS_PORT:-8080}"
+export ECOPS_PORT="${ECOPS_PORT:-8002}"
+export UI_PORT="${UI_PORT:-5173}"
+
 COMPOSE=(docker compose)
 if [[ "${OBS_STACK:-0}" == "1" ]]; then
   COMPOSE+=(--profile obs)
