@@ -17,7 +17,25 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-ECOPS_URL="${ECOPS_BASE_URL:-http://localhost:${ECOPS_PORT:-8002}}"
+host_reachable_url() {
+  local url="$1"
+  case "$url" in
+    http://host.docker.internal*)
+      printf 'http://localhost%s\n' "${url#http://host.docker.internal}"
+      ;;
+    https://host.docker.internal*)
+      printf 'https://localhost%s\n' "${url#https://host.docker.internal}"
+      ;;
+    *)
+      printf '%s\n' "$url"
+      ;;
+  esac
+}
+
+ECOPS_URL="${ECOPS_TOKEN_URL:-}"
+if [[ -z "$ECOPS_URL" ]]; then
+  ECOPS_URL="$(host_reachable_url "${ECOPS_BASE_URL:-http://localhost:${ECOPS_PORT:-8002}}")"
+fi
 USERNAME="${ECOPS_USERNAME:-}"
 PASSWORD="${ECOPS_PASSWORD:-}"
 PRINT_ONLY=0
@@ -28,6 +46,7 @@ for arg in "$@"; do
     --help|-h)
       echo "Usage: $0 [--print]"
       echo "  Fetches JWT from POST ${ECOPS_URL}/auth/token"
+      echo "  Env: ECOPS_TOKEN_URL overrides host-side token endpoint"
       echo "  Env: ECOPS_USERNAME, ECOPS_PASSWORD (prompted if unset)"
       exit 0
       ;;
