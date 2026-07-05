@@ -15,13 +15,14 @@ export const queryKeys = {
   session: (id: string) => ["session", id] as const,
 };
 
-export function useCatalog() {
+export function useCatalog(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.catalog,
     queryFn: async () => {
       const result = await fetchCatalog();
       return result;
     },
+    refetchInterval: options?.refetchInterval ?? false,
   });
 }
 

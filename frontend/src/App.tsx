@@ -74,11 +74,13 @@ export function App() {
     storedActiveCheckout?.confirmIdempotencyKey ?? null,
   );
 
-  const catalogQuery = useCatalog();
   const sessionQuery = useSession(sessionId);
+  const session = sessionQuery.data?.data ?? null;
+  const catalogQuery = useCatalog({
+    refetchInterval: session?.state === "HELD" ? 2000 : false,
+  });
   const { startCheckout, confirmCheckout, abandonCheckout } = useCheckoutMutations(setObservability);
 
-  const session = sessionQuery.data?.data ?? null;
   const checkoutActive = Boolean(session && !isTerminalState(session.state));
 
   const products = useMemo(() => catalogQuery.data?.data ?? [], [catalogQuery.data]);
@@ -88,6 +90,30 @@ export function App() {
       clearStoredActiveCheckout();
     }
   }, [session]);
+
+  useEffect(() => {
+    if (!cart) {
+      return;
+    }
+    const product = products.find((item) => item.sku === cart.sku);
+    if (!product) {
+      return;
+    }
+    const stockUnknown = product.availableQuantity === null;
+    const maxQuantity =
+      product.availableQuantity === null
+        ? cart.maxQuantity
+        : Math.max(product.availableQuantity, 0);
+    const quantity =
+      maxQuantity > 0 ? Math.min(cart.quantity, maxQuantity) : cart.quantity;
+    if (
+      cart.maxQuantity !== maxQuantity ||
+      cart.quantity !== quantity ||
+      cart.stockUnknown !== stockUnknown
+    ) {
+      setCart({ ...cart, maxQuantity, quantity, stockUnknown });
+    }
+  }, [products, cart]);
 
   const handleStartCheckout = async () => {
     if (!cart) {
@@ -117,6 +143,7 @@ export function App() {
       const result = await confirmCheckout.mutateAsync({ sessionId, idempotencyKey });
       if (isTerminalState(result.data.state)) {
         clearStoredActiveCheckout();
+        setCart(null);
       }
     } catch (err) {
       setError(isApiError(err) ? err.detail : "Confirm failed");

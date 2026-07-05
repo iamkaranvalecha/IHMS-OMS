@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { CatalogProduct, CartItem } from "@/api/types";
 import { formatCurrency } from "@/api/normalize";
 
@@ -8,22 +10,39 @@ interface CatalogGridProps {
   disabled?: boolean;
 }
 
+const UNKNOWN_STOCK_CAP = 99;
+
+function maxPurchasable(product: CatalogProduct): number {
+  if (product.availableQuantity === null) {
+    return UNKNOWN_STOCK_CAP;
+  }
+  return Math.max(product.availableQuantity, 0);
+}
+
 export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProps) {
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+
   return (
     <section className="panel">
       <h2>Inventory</h2>
       <ul className="catalog-grid">
         {products.map((product) => {
           const inCart = cart?.sku === product.sku;
-          const outOfStock = product.availableQuantity <= 0;
-          const maxQty = Math.max(product.availableQuantity, 0);
+          const stockUnknown = product.availableQuantity === null;
+          const outOfStock = !stockUnknown && product.availableQuantity <= 0;
+          const maxQty = maxPurchasable(product);
+          const selectedQty = quantities[product.sku] ?? 1;
           return (
             <li key={product.sku} className="catalog-card">
               <h3>{product.name}</h3>
               <p className="sku">{product.sku}</p>
               <p className="price">{formatCurrency(product.unitPrice)}</p>
               <p className={outOfStock ? "stock stock-out" : "stock"}>
-                {outOfStock ? "Out of stock" : `${product.availableQuantity} in stock`}
+                {stockUnknown
+                  ? "Stock unavailable"
+                  : outOfStock
+                    ? "Out of stock"
+                    : `${product.availableQuantity} in stock`}
               </p>
               {!outOfStock && (
                 <label className="field quantity-field">
@@ -32,9 +51,18 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                     type="number"
                     min={1}
                     max={maxQty}
-                    defaultValue={1}
+                    value={selectedQty}
                     disabled={disabled || inCart}
-                    id={`qty-${product.sku}`}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10);
+                      if (!Number.isFinite(parsed)) {
+                        return;
+                      }
+                      setQuantities((prev) => ({
+                        ...prev,
+                        [product.sku]: Math.min(Math.max(parsed, 1), maxQty),
+                      }));
+                    }}
                   />
                 </label>
               )}
@@ -42,17 +70,14 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                 type="button"
                 disabled={disabled || inCart || outOfStock}
                 onClick={() => {
-                  const input = document.getElementById(`qty-${product.sku}`) as HTMLInputElement;
-                  const parsed = Number.parseInt(input?.value ?? "1", 10);
-                  const quantity = Number.isFinite(parsed)
-                    ? Math.min(Math.max(parsed, 1), maxQty)
-                    : 1;
+                  const quantity = Math.min(Math.max(selectedQty, 1), maxQty);
                   onAdd({
                     sku: product.sku,
                     name: product.name,
                     unitPrice: product.unitPrice,
                     quantity,
                     maxQuantity: maxQty,
+                    stockUnknown,
                   });
                 }}
               >

@@ -157,6 +157,8 @@ class SagaCoordinator:
                     updates["state"] = SessionState(str(cached_state))
                 if updates:
                     session = self.sessions.save(session.model_copy(update=updates))
+                if session.hold_id and session.is_terminal():
+                    await fulfill_hold_safe(self.ihms, session.hold_id, headers)
                 log_saga_step(
                     "confirm",
                     "confirm served from idempotency cache",
@@ -196,12 +198,21 @@ class SagaCoordinator:
             order_payload = self._build_order_payload(session, resolved_customer)
 
             try:
-                order, reconciled = await self._create_order_with_retry(
-                    order_payload,
+                existing_order = await find_order_by_reference(
+                    self.ecops,
+                    session.correlation_id,
                     headers,
-                    idempotency_key=idempotency_key,
-                    client_reference=session.correlation_id,
+                    max_retries=0,
                 )
+                if existing_order is not None:
+                    order, reconciled = existing_order, True
+                else:
+                    order, reconciled = await self._create_order_with_retry(
+                        order_payload,
+                        headers,
+                        idempotency_key=idempotency_key,
+                        client_reference=session.correlation_id,
+                    )
                 if session.hold_id:
                     await fulfill_hold_safe(self.ihms, session.hold_id, headers)
                 terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
@@ -380,7 +391,11 @@ class SagaCoordinator:
             )
 
         if session.state == SessionState.HELD:
-            self.sessions.save(session.model_copy(update={"state": SessionState.COMPENSATED}))
+            self.sessions.save(
+                session.model_copy(
+                    update={"state": SessionState.COMPENSATED, "idempotency_key": None}
+                )
+            )
 
         record_compensation()
         log_saga_step(

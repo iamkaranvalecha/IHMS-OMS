@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { CartItem } from "@/api/types";
 import { formatCurrency } from "@/api/normalize";
 
@@ -22,61 +24,84 @@ export function CartPanel({
   checkoutPending,
   disabled,
 }: CartPanelProps) {
+  const [quantityInput, setQuantityInput] = useState(cart ? String(cart.quantity) : "1");
+
+  useEffect(() => {
+    if (cart) {
+      setQuantityInput(String(cart.quantity));
+    }
+  }, [cart?.sku, cart?.quantity]);
+
+  if (!cart) {
+    return (
+      <section className="panel">
+        <h2>Cart</h2>
+        <p className="muted">Add a product to start checkout.</p>
+      </section>
+    );
+  }
+
+  const commitQuantity = () => {
+    const parsed = Number.parseInt(quantityInput, 10);
+    const quantity = Number.isFinite(parsed)
+      ? Math.min(Math.max(parsed, 1), cart.maxQuantity)
+      : cart.quantity;
+    setQuantityInput(String(quantity));
+    if (quantity !== cart.quantity) {
+      onCartChange({ ...cart, quantity });
+    }
+  };
+
   return (
     <section className="panel">
       <h2>Cart</h2>
-      {!cart ? (
-        <p className="muted">Add a product to start checkout.</p>
-      ) : (
-        <>
-          <div className="cart-line">
-            <span>
-              {cart.name} × {cart.quantity}
-            </span>
-            <span>{formatCurrency(cart.unitPrice * cart.quantity)}</span>
-          </div>
-          <label className="field quantity-field">
-            <span>Quantity</span>
-            <input
-              type="number"
-              min={1}
-              max={cart.maxQuantity}
-              value={cart.quantity}
-              disabled={disabled}
-              onChange={(event) => {
-                const parsed = Number.parseInt(event.target.value, 10);
-                if (!Number.isFinite(parsed)) {
-                  return;
-                }
-                const quantity = Math.min(Math.max(parsed, 1), cart.maxQuantity);
-                onCartChange({ ...cart, quantity });
-              }}
-            />
-          </label>
-          <p className="muted">Up to {cart.maxQuantity} available</p>
-          <button type="button" className="link-button" onClick={onRemove} disabled={disabled}>
-            Remove
-          </button>
-          <label className="field">
-            <span>Customer name</span>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => onCustomerNameChange(e.target.value)}
-              disabled={disabled}
-              placeholder="Jane Doe"
-            />
-          </label>
-          <button
-            type="button"
-            className="primary"
-            disabled={disabled || checkoutPending || !customerName.trim()}
-            onClick={onCheckout}
-          >
-            {checkoutPending ? "Placing hold…" : "Place hold & checkout"}
-          </button>
-        </>
-      )}
+      <div className="cart-line">
+        <span>
+          {cart.name} × {cart.quantity}
+        </span>
+        <span>{formatCurrency(cart.unitPrice * cart.quantity)}</span>
+      </div>
+      <label className="field quantity-field">
+        <span>Quantity</span>
+        <input
+          type="number"
+          min={1}
+          max={cart.maxQuantity}
+          value={quantityInput}
+          disabled={disabled}
+          onChange={(event) => setQuantityInput(event.target.value)}
+          onBlur={commitQuantity}
+        />
+      </label>
+      <p className="muted">
+        {cart.stockUnknown
+          ? "Stock level unknown — hold may fail if insufficient"
+          : `Up to ${cart.maxQuantity} available`}
+      </p>
+      <button type="button" className="link-button" onClick={onRemove} disabled={disabled}>
+        Remove
+      </button>
+      <label className="field">
+        <span>Customer name</span>
+        <input
+          type="text"
+          value={customerName}
+          onChange={(e) => onCustomerNameChange(e.target.value)}
+          disabled={disabled}
+          placeholder="Jane Doe"
+        />
+      </label>
+      <button
+        type="button"
+        className="primary"
+        disabled={disabled || checkoutPending || !customerName.trim()}
+        onClick={() => {
+          commitQuantity();
+          onCheckout();
+        }}
+      >
+        {checkoutPending ? "Placing hold…" : "Place hold & checkout"}
+      </button>
     </section>
   );
 }

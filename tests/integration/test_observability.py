@@ -61,6 +61,7 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
 
     order_id = str(uuid4())
     correlation_id = create.json()["correlation_id"]
+    respx.get("http://ecops.test/orders").mock(return_value=httpx.Response(200, json=[]))
     respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(
             201,

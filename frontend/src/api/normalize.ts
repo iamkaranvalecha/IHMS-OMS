@@ -13,7 +13,7 @@ interface WireCatalogProduct {
   ihms_product_id: string;
   ecops_item_code: string;
   unit_price: number;
-  available_quantity: number;
+  available_quantity: number | null;
 }
 
 interface WireSessionLineItem {
@@ -57,7 +57,7 @@ export function normalizeCatalogProduct(raw: WireCatalogProduct): CatalogProduct
     ihmsProductId: raw.ihms_product_id,
     ecopsItemCode: raw.ecops_item_code,
     unitPrice: raw.unit_price,
-    availableQuantity: raw.available_quantity,
+    availableQuantity: raw.available_quantity ?? null,
   };
 }
 

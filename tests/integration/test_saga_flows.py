@@ -67,6 +67,10 @@ def _mock_fulfill(hold_id: str) -> None:
     )
 
 
+def _mock_ecops_list_orders_empty() -> None:
+    respx.get("http://ecops.test/orders").mock(return_value=httpx.Response(200, json=[]))
+
+
 @respx.mock
 async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
@@ -86,6 +90,7 @@ async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
     assert hold_resp.json()["hold_id"] == "hold-int"
 
     order_id = str(uuid4())
+    _mock_ecops_list_orders_empty()
     respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(201, json=_ecops_order_response(order_id, correlation_id))
     )
@@ -141,6 +146,7 @@ async def test_confirm_compensates_when_order_fails(client: AsyncClient) -> None
     respx.get("http://ihms.test/api/holds/hold-fail").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-fail"))
     )
+    _mock_ecops_list_orders_empty()
     respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(500, json={"detail": "Order failed"})
     )
@@ -177,6 +183,7 @@ async def test_duplicate_confirm_returns_cached(client: AsyncClient) -> None:
     assert hold_resp.json()["state"] == "HELD"
 
     order_id = str(uuid4())
+    _mock_ecops_list_orders_empty()
     order_route = respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(201, json=_ecops_order_response(order_id, correlation_id))
     )
@@ -241,6 +248,7 @@ async def test_confirm_sends_session_correlation_to_ecops(client: AsyncClient) -
     )
 
     order_id = str(uuid4())
+    _mock_ecops_list_orders_empty()
     order_route = respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(
             201,
@@ -282,10 +290,13 @@ async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-reconcile"))
     )
     respx.get("http://ecops.test/orders").mock(
-        return_value=httpx.Response(
-            200,
-            json=[_ecops_order_response(order_id, correlation_id)],
-        )
+        side_effect=[
+            httpx.Response(200, json=[]),
+            httpx.Response(
+                200,
+                json=[_ecops_order_response(order_id, correlation_id)],
+            ),
+        ]
     )
     _mock_fulfill("hold-reconcile")
 
@@ -319,7 +330,10 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-reconcile-error"))
     )
     respx.get("http://ecops.test/orders").mock(
-        return_value=httpx.Response(503, json={"detail": "Order list unavailable"})
+        side_effect=[
+            httpx.Response(200, json=[]),
+            httpx.Response(503, json={"detail": "Order list unavailable"}),
+        ]
     )
     confirm = await client.post(
         f"/sessions/{session_id}/confirm",
@@ -363,6 +377,7 @@ async def test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_o
     )
     list_route = respx.get("http://ecops.test/orders").mock(
         side_effect=[
+            httpx.Response(200, json=[]),
             httpx.Response(503, json={"detail": "Order list unavailable"}),
             httpx.Response(200, json=[_ecops_order_response(order_id, correlation_id)]),
         ]
@@ -379,7 +394,7 @@ async def test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_o
     assert second.json()["order_id"] == order_id
     assert order_route.call_count == 1
     assert hold_check.call_count == 1
-    assert list_route.call_count == 2
+    assert list_route.call_count == 3
 
 
 @respx.mock
@@ -403,19 +418,48 @@ async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-unmatched"))
     )
     respx.get("http://ecops.test/orders").mock(
-        return_value=httpx.Response(
-            200,
-            json=[
-                {
-                    "id": unrelated_order,
-                    "customer_name": "Someone Else",
-                    "status": "PENDING",
-                    "created_at": datetime.now(UTC).isoformat(),
-                    "updated_at": None,
-                    "items": [],
-                }
-            ],
-        )
+        side_effect=[
+            httpx.Response(200, json=[]),
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": unrelated_order,
+                        "customer_name": "Someone Else",
+                        "status": "PENDING",
+                        "created_at": datetime.now(UTC).isoformat(),
+                        "updated_at": None,
+                        "items": [],
+                    }
+                ],
+            ),
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": unrelated_order,
+                        "customer_name": "Someone Else",
+                        "status": "PENDING",
+                        "created_at": datetime.now(UTC).isoformat(),
+                        "updated_at": None,
+                        "items": [],
+                    }
+                ],
+            ),
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": unrelated_order,
+                        "customer_name": "Someone Else",
+                        "status": "PENDING",
+                        "created_at": datetime.now(UTC).isoformat(),
+                        "updated_at": None,
+                        "items": [],
+                    }
+                ],
+            ),
+        ]
     )
     release = respx.delete("http://ihms.test/api/holds/hold-unmatched").mock(
         return_value=httpx.Response(204)

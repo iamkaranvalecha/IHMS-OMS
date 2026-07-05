@@ -26,6 +26,7 @@ vi.mock("@/components/CatalogGrid", () => ({
           availableQuantity: 10,
           quantity: 1,
           maxQuantity: 10,
+          stockUnknown: false,
         })
       }
     >

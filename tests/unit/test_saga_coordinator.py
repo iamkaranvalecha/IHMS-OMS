@@ -217,6 +217,99 @@ async def test_idempotency_returns_cached_response(
 
 
 @pytest.mark.asyncio
+async def test_idempotency_cache_retries_fulfill(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.create_order.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+    )
+
+    await saga.confirm(session.session_id, None, "idem-fulfill-retry", obs)
+    saga.ihms.fulfill_hold.reset_mock()
+
+    cached = await saga.confirm(session.session_id, None, "idem-fulfill-retry", obs)
+
+    assert cached.from_cache is True
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_confirm_with_pending_idempotency_key_skips_duplicate_order_post(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session().model_copy(update={"idempotency_key": "idem-pending"})
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-pending", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+    saga.ecops.create_order.assert_not_awaited()
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_compensate_clears_idempotency_key(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    saga.ecops.create_order.side_effect = UpstreamError(
+        UpstreamProblem(status_code=500, detail="Order failed")
+    )
+
+    with pytest.raises(UpstreamError):
+        await saga.confirm(session.session_id, None, "idem-fail", obs)
+
+    updated = saga.sessions.get(session.session_id)
+    assert updated is not None
+    assert updated.state == SessionState.COMPENSATED
+    assert updated.idempotency_key is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_skips_order_post_when_correlation_already_exists(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-existing-order", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+    saga.ecops.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_concurrent_duplicate_confirm_creates_single_order(
     saga: SagaCoordinator, obs: ObservabilityHeaders
 ) -> None:
@@ -254,15 +347,18 @@ async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: Observability
     saga.sessions.save(session)
     order_id = uuid4()
     saga.ecops.create_order.side_effect = GatewayTimeoutError("timeout")
-    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
-        id=order_id,
-        customer_name="Test Customer",
-        status=OrderStatus.PENDING,
-        created_at=datetime.now(UTC),
-        updated_at=None,
-        items=[],
-        client_reference="corr-unit",
-    )
+    saga.ecops.find_order_by_client_reference.side_effect = [
+        None,
+        OrderResponse(
+            id=order_id,
+            customer_name="Test Customer",
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            items=[],
+            client_reference="corr-unit",
+        ),
+    ]
 
     result = await saga.confirm(session.session_id, None, "idem-reconcile", obs)
 
@@ -300,7 +396,7 @@ async def test_timeout_without_reconciled_order_does_not_requery_after_miss(
     with pytest.raises(CompensationIncompleteError):
         await saga.confirm(session.session_id, None, "idem-timeout-miss", obs)
 
-    assert saga.ecops.find_order_by_client_reference.await_count == 3
+    assert saga.ecops.find_order_by_client_reference.await_count == 4
     saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
     updated = saga.sessions.get(session.session_id)
     assert updated is not None

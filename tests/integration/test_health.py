@@ -63,6 +63,18 @@ async def test_catalog_list_returns_products(client: AsyncClient) -> None:
     assert products[0]["available_quantity"] == 100
 
 
+@respx.mock
+async def test_catalog_degrades_when_ihms_inventory_unavailable(client: AsyncClient) -> None:
+    respx.get("http://ihms.test/api/inventory").mock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
+    response = await client.get("/catalog")
+    assert response.status_code == 200
+    products = response.json()
+    assert len(products) >= 1
+    assert products[0]["available_quantity"] is None
+
+
 async def test_create_and_get_session(client: AsyncClient) -> None:
     create_resp = await client.post("/sessions", json={})
     assert create_resp.status_code == 201

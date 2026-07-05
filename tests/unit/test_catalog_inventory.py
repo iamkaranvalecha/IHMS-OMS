@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from src.catalog.inventory import list_catalog_with_inventory
 from src.catalog.provider import JsonCatalogProvider
+from src.gateway.exceptions import GatewayTimeoutError
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_models import InventoryItemResponse
 
@@ -60,3 +61,16 @@ async def test_list_catalog_with_inventory_defaults_missing_products_to_zero(
     products = await list_catalog_with_inventory(catalog, ihms, OBS)
 
     assert products[0].available_quantity == 0
+
+
+@pytest.mark.asyncio
+async def test_list_catalog_with_inventory_degrades_when_ihms_unavailable(
+    catalog: JsonCatalogProvider,
+) -> None:
+    ihms = MagicMock()
+    ihms.get_inventory = AsyncMock(side_effect=GatewayTimeoutError("timeout"))
+
+    products = await list_catalog_with_inventory(catalog, ihms, OBS)
+
+    assert len(products) == 1
+    assert products[0].available_quantity is None

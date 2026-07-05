@@ -46,7 +46,7 @@ class CatalogProductOut(BaseModel):
     ihms_product_id: str
     ecops_item_code: str
     unit_price: float
-    available_quantity: int
+    available_quantity: int | None = None
 
     @classmethod
     def from_catalog(cls, product: CatalogProduct) -> "CatalogProductOut":
@@ -56,7 +56,7 @@ class CatalogProductOut(BaseModel):
             ihms_product_id=product.ihms_product_id,
             ecops_item_code=product.ecops_item_code,
             unit_price=product.unit_price,
-            available_quantity=0,
+            available_quantity=None,
         )
 
     @classmethod
