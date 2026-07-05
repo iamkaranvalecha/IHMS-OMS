@@ -22,6 +22,7 @@ from src.saga.exceptions import (
     CompensationIncompleteError,
     HoldExpiredError,
     InvalidStateTransitionError,
+    OrderStatusUnknownError,
     ProductNotFoundError,
     SessionNotFoundError,
 )
@@ -135,6 +136,17 @@ class SagaCoordinator:
                     f"Cannot confirm from state {session.state.value}",
                     detail=f"Session must be HELD to confirm, got {session.state.value}",
                 )
+            if session.idempotency_key is not None:
+                if session.idempotency_key != idempotency_key:
+                    raise InvalidStateTransitionError(
+                        "Confirm already has an unresolved order attempt",
+                        detail="Retry with the original Idempotency-Key to resolve order status",
+                    )
+                return await self._resolve_existing_order_attempt_locked(
+                    session,
+                    headers,
+                    idempotency_key,
+                )
             if not session.line_items:
                 raise InvalidStateTransitionError("Session has no line items to confirm")
             self._assert_hold_not_expired(session)
@@ -167,6 +179,9 @@ class SagaCoordinator:
                 raise CompensationIncompleteError(
                     "Order creation timed out and could not be reconciled; hold release attempted",
                 ) from None
+            except OrderStatusUnknownError:
+                self.sessions.save(session.model_copy(update={"idempotency_key": idempotency_key}))
+                raise
             except GatewayError:
                 await self._compensate_and_fail_locked(session, headers)
                 raise
@@ -210,7 +225,7 @@ class SagaCoordinator:
             try:
                 order = await find_order_by_reference(self.ecops, client_reference, headers)
             except GatewayError as exc:
-                raise CompensationIncompleteError(
+                raise OrderStatusUnknownError(
                     "Order creation timed out and reconciliation failed; hold retained",
                     detail="Order status is unknown; hold was not released",
                 ) from exc
@@ -253,6 +268,33 @@ class SagaCoordinator:
             IdempotencyRecord(status_code=200, body=body, order_id=order_id),
         )
         return ConfirmResult(session=session)
+
+    async def _resolve_existing_order_attempt_locked(
+        self,
+        session: CheckoutSession,
+        headers: ObservabilityHeaders,
+        idempotency_key: str,
+    ) -> ConfirmResult:
+        """Resolve a prior ambiguous order create before considering another POST."""
+        try:
+            order = await find_order_by_reference(self.ecops, session.correlation_id, headers)
+        except GatewayError as exc:
+            raise OrderStatusUnknownError(
+                "Previous order status is still unknown; hold retained",
+                detail="Order status is unknown; hold was not released",
+            ) from exc
+        if order is not None:
+            return self._finalize_success_locked(
+                session,
+                order,
+                idempotency_key,
+                SessionState.RECONCILED,
+            )
+
+        await self._compensate_and_fail_locked(session, headers)
+        raise CompensationIncompleteError(
+            "Previous order attempt was not found; hold release attempted",
+        )
 
     async def _compensate_and_fail_locked(
         self,

@@ -20,6 +20,7 @@ not attach an unfiltered list result or retry `POST /orders` blindly.
 - EC-OPS list/filter or client reference field is required for successful reconciliation.
 - If reconciliation succeeds but returns no trusted match, the orchestrator compensates the hold and returns an ambiguous timeout error instead of risking duplicate orders.
 - If reconciliation itself fails, the orchestrator retains the hold and returns 503 because releasing inventory while an order may exist would create order/hold divergence.
+- While that order status is unknown, the original confirm `Idempotency-Key` is retained on the held session. A retry with the same key must reconcile the original attempt before any new `POST /orders`; a different key is rejected to avoid duplicate EC-OPS orders.
 - Documented in [sequences/reconciliation.md](../sequences/reconciliation.md).
 
 ## Open questions

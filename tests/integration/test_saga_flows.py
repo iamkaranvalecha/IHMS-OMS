@@ -325,6 +325,53 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
 
 
 @respx.mock
+async def test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_order(
+    client: AsyncClient,
+) -> None:
+    create = await client.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+    correlation_id = create.json()["correlation_id"]
+
+    respx.post("http://ihms.test/api/holds").mock(
+        return_value=httpx.Response(201, json=_ihms_hold_response("hold-unknown"))
+    )
+    hold_resp = await client.post(
+        f"/sessions/{session_id}/hold",
+        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
+    )
+    assert hold_resp.status_code == 200, hold_resp.text
+
+    order_id = str(uuid4())
+    order_route = respx.post("http://ecops.test/orders").mock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
+    hold_check = respx.get("http://ihms.test/api/holds/hold-unknown").mock(
+        side_effect=[
+            httpx.Response(200, json=_ihms_hold_response("hold-unknown")),
+            httpx.Response(409, json={"title": "Conflict", "detail": "Hold expired"}),
+        ]
+    )
+    list_route = respx.get("http://ecops.test/orders").mock(
+        side_effect=[
+            httpx.Response(503, json={"detail": "Order list unavailable"}),
+            httpx.Response(200, json=[_ecops_order_response(order_id, correlation_id)]),
+        ]
+    )
+
+    headers = {"Idempotency-Key": "idem-unknown"}
+    first = await client.post(f"/sessions/{session_id}/confirm", json={}, headers=headers)
+    assert first.status_code == 503, first.json()
+
+    second = await client.post(f"/sessions/{session_id}/confirm", json={}, headers=headers)
+    assert second.status_code == 200, second.json()
+    assert second.json()["state"] == "RECONCILED"
+    assert second.json()["order_id"] == order_id
+    assert order_route.call_count == 1
+    assert hold_check.call_count == 1
+    assert list_route.call_count == 2
+
+
+@respx.mock
 async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
     session_id = create.json()["session_id"]

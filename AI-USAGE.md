@@ -29,8 +29,31 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Cloud Agent — Phase 5 full stack E2E | passed | backend verify.sh 47 tests; `STACK=1` runs 7 e2e against mock upstream compose stack |
 | 2026-07-05 | Consolidated PR #15 | passed | Supersedes #13 (frontend idempotency) + #16 (upstream rules); e2e reconcile fix |
 | 2026-07-05 | Bug-finding automation — reconciliation/correlation fixes | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 15 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Unknown order retry guard
+
+**User query:** Deep bug-finding automation for PR #17; fix only critical correctness bugs.
+
+**Bug and impact:**
+- After `POST /orders` timed out and EC-OPS order-list reconciliation failed, the saga correctly retained the IHMS hold but left the held session indistinguishable from a normal pre-confirm checkout.
+- A client retry could call `POST /orders` again before resolving the first ambiguous create. EC-OPS may not enforce `Idempotency-Key`, so this risked duplicate customer orders for one held checkout.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected treating "hold retained" as a terminally safe state; it must remember the unresolved order attempt.
+- Rejected a broad new session state for this hot fix; the existing `idempotency_key` field is enough to pin the unresolved attempt and block different keys.
+
+**Actions:**
+- Added `OrderStatusUnknownError` so lookup failures are distinct from compensatable order failures.
+- Retain the original confirm idempotency key when order status is unknown.
+- Same-key retries now reconcile the original attempt before any new order create; different keys are rejected while status is unknown.
+- Updated reconciliation docs and added an integration regression for retry-after-lookup-failure without duplicate EC-OPS POSTs.
+
+**Verification:**
+- `python3 -m pytest tests/integration/test_saga_flows.py::test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_order -q` → passed.
+- `bash scripts/verify.sh` → passed (20 unit, 7 contract, 7 component, 16 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — Reconciliation and correlation bug fixes
 
