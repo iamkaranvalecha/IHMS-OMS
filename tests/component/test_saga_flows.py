@@ -11,7 +11,12 @@ from src.catalog.provider import JsonCatalogProvider
 from src.checkout.service import CheckoutService
 from src.gateway.ecops_models import OrderResponse, OrderStatus
 from src.gateway.exceptions import UpstreamError, UpstreamProblem
-from src.gateway.ihms_models import HoldItemResponse, HoldResponse, HoldStatus
+from src.gateway.ihms_models import (
+    HoldItemResponse,
+    HoldResponse,
+    HoldStatus,
+    InventoryItemResponse,
+)
 from src.session.models import SessionState
 from src.session.store import InMemorySessionStore
 
@@ -27,7 +32,13 @@ def checkout(catalog: JsonCatalogProvider) -> CheckoutService:
     ihms = MagicMock()
     ihms.create_hold = AsyncMock()
     ihms.get_hold = AsyncMock()
+    ihms.get_inventory = AsyncMock(
+        return_value=[
+            InventoryItemResponse(product_id="prod-widget-001", available_quantity=100),
+        ]
+    )
     ihms.release_hold = AsyncMock()
+    ihms.fulfill_hold = AsyncMock()
     ecops = MagicMock()
     ecops.create_order = AsyncMock()
     ecops.find_order_by_client_reference = AsyncMock(return_value=None)
@@ -57,7 +68,7 @@ async def test_saga_compensates_when_ecops_returns_500(
         expires_at=datetime.now(UTC) + timedelta(minutes=10),
     )
     held = await checkout.place_hold(
-        session.session_id, "WIDGET-001", 1, "Customer", obs
+        session.session_id, [("WIDGET-001", 1)], "Customer", obs
     )
     assert held.state == SessionState.HELD
 
@@ -85,7 +96,7 @@ async def test_saga_happy_path_hold_then_confirm(checkout: CheckoutService, obs)
         expires_at=datetime.now(UTC) + timedelta(minutes=10),
     )
     held = await checkout.place_hold(
-        session.session_id, "WIDGET-001", 1, "Happy Customer", obs
+        session.session_id, [("WIDGET-001", 1)], "Happy Customer", obs
     )
     order_id = uuid4()
     checkout.ecops.create_order.return_value = OrderResponse(

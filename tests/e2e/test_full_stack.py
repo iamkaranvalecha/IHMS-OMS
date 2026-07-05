@@ -7,6 +7,16 @@ import pytest
 from tests.e2e.conftest import ECOPS_ADMIN_URL, IHMS_ADMIN_URL
 
 
+def _hold_body(
+    customer_name: str = "E2E Customer",
+    *,
+    items: list[dict[str, object]] | None = None,
+) -> dict:
+    if items is None:
+        items = [{"sku": "WIDGET-001", "quantity": 1}]
+    return {"items": items, "customer_name": customer_name}
+
+
 @pytest.mark.e2e
 async def test_metrics_endpoint(api: httpx.AsyncClient) -> None:
     response = await api.get("/metrics")
@@ -33,6 +43,44 @@ async def test_catalog_lists_products(api: httpx.AsyncClient) -> None:
     products = response.json()
     assert len(products) >= 1
     assert products[0]["sku"] == "WIDGET-001"
+    assert "available_quantity" in products[0]
+
+
+@pytest.mark.e2e
+async def test_catalog_shows_live_inventory(api: httpx.AsyncClient) -> None:
+    response = await api.get("/catalog")
+    assert response.status_code == 200
+    products = response.json()
+    widget = next(item for item in products if item["sku"] == "WIDGET-001")
+    assert widget["available_quantity"] >= 1
+    initial_qty = widget["available_quantity"]
+
+    create = await api.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+    correlation_id = create.json()["correlation_id"]
+
+    hold = await api.post(
+        f"/sessions/{session_id}/hold",
+        json=_hold_body("Inventory E2E", items=[{"sku": "WIDGET-001", "quantity": 2}]),
+    )
+    assert hold.status_code == 200
+
+    after_hold = await api.get("/catalog")
+    widget_after_hold = next(item for item in after_hold.json() if item["sku"] == "WIDGET-001")
+    assert widget_after_hold["available_quantity"] == initial_qty - 2
+
+    confirm = await api.post(
+        f"/sessions/{session_id}/confirm",
+        json={},
+        headers={"Idempotency-Key": f"e2e-inventory-{correlation_id}"},
+    )
+    assert confirm.status_code == 200
+
+    after_confirm = await api.get("/catalog")
+    widget_after_confirm = next(
+        item for item in after_confirm.json() if item["sku"] == "WIDGET-001"
+    )
+    assert widget_after_confirm["available_quantity"] == initial_qty - 2
 
 
 @pytest.mark.e2e
@@ -44,7 +92,7 @@ async def test_happy_path_hold_and_confirm(api: httpx.AsyncClient) -> None:
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
     held = hold.json()
@@ -78,7 +126,7 @@ async def test_hold_fails_with_409(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 409
 
@@ -99,7 +147,7 @@ async def test_confirm_compensates_when_order_fails(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
     assert hold.json()["state"] == "HELD"
@@ -131,7 +179,7 @@ async def test_reconcile_after_order_timeout(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
 
@@ -154,7 +202,7 @@ async def test_abandon_releases_hold(api: httpx.AsyncClient) -> None:
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
 

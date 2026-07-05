@@ -44,6 +44,13 @@ def _ihms_hold(hold_id: str = "hold-obs") -> dict:
     }
 
 
+def _hold_body(customer_name: str = "Customer") -> dict:
+    return {
+        "items": [{"sku": "WIDGET-001", "quantity": 1}],
+        "customer_name": customer_name,
+    }
+
+
 @respx.mock
 async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
@@ -52,15 +59,22 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold())
     )
+    respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"productId": "prod-widget-001", "availableQuantity": 100}],
+        )
+    )
     await client.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Obs Customer"},
+        json=_hold_body("Obs Customer"),
     )
 
     from uuid import uuid4
 
     order_id = str(uuid4())
     correlation_id = create.json()["correlation_id"]
+    respx.get("http://ecops.test/orders").mock(return_value=httpx.Response(200, json=[]))
     respx.post("http://ecops.test/orders").mock(
         return_value=httpx.Response(
             201,
@@ -77,6 +91,9 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     )
     respx.get("http://ihms.test/api/holds/hold-obs").mock(
         return_value=httpx.Response(200, json=_ihms_hold())
+    )
+    respx.post("http://ihms.test/api/holds/hold-obs/fulfill").mock(
+        return_value=httpx.Response(204)
     )
     await client.post(
         f"/sessions/{session_id}/confirm",
@@ -104,9 +121,15 @@ async def test_saga_emits_structured_log_steps(
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold("hold-log"))
     )
+    respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"productId": "prod-widget-001", "availableQuantity": 100}],
+        )
+    )
     await client.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Log Customer"},
+        json=_hold_body("Log Customer"),
     )
 
     steps = [getattr(record, "step", None) for record in caplog.records]

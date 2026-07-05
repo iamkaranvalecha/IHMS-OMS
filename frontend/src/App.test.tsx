@@ -3,7 +3,7 @@ import type { ChangeEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCatalog, useCheckoutMutations, useSession } from "@/api/hooks";
-import type { CatalogProduct, CheckoutSession, ObservabilityIds } from "@/api/types";
+import type { CartItem, CatalogProduct, CheckoutSession, ObservabilityIds } from "@/api/types";
 import { App } from "./App";
 
 vi.mock("@/api/hooks", () => ({
@@ -13,17 +13,17 @@ vi.mock("@/api/hooks", () => ({
 }));
 
 vi.mock("@/components/CatalogGrid", () => ({
-  CatalogGrid: ({ onAdd }: { onAdd: (item: CatalogProduct & { quantity: number }) => void }) => (
+  CatalogGrid: ({ onAdd }: { onAdd: (item: CartItem) => void }) => (
     <button
       type="button"
       onClick={() =>
         onAdd({
           sku: "WIDGET-001",
           name: "Widget",
-          ihmsProductId: "prod-widget-001",
-          ecopsItemCode: "WIDGET-001",
           unitPrice: 19.99,
           quantity: 1,
+          maxQuantity: 10,
+          stockUnknown: false,
         })
       }
     >
@@ -39,9 +39,9 @@ vi.mock("@/components/CartPanel", () => ({
     onCheckout,
     onCustomerNameChange,
   }: {
-    cart: unknown;
+    cart: CartItem[];
     customerName: string;
-    onCheckout: () => void;
+    onCheckout: (items: CartItem[]) => void;
     onCustomerNameChange: (value: string) => void;
   }) => (
     <div>
@@ -52,7 +52,7 @@ vi.mock("@/components/CartPanel", () => ({
           onCustomerNameChange(event.target.value)
         }
       />
-      <button type="button" disabled={!cart} onClick={onCheckout}>
+      <button type="button" disabled={cart.length === 0} onClick={() => onCheckout(cart)}>
         Place hold
       </button>
     </div>
@@ -94,6 +94,7 @@ const catalogProduct: CatalogProduct = {
   ihmsProductId: "prod-widget-001",
   ecopsItemCode: "WIDGET-001",
   unitPrice: 19.99,
+  availableQuantity: 100,
 };
 
 function setupHooks() {

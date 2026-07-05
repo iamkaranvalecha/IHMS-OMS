@@ -15,13 +15,14 @@ export const queryKeys = {
   session: (id: string) => ["session", id] as const,
 };
 
-export function useCatalog() {
+export function useCatalog(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.catalog,
     queryFn: async () => {
       const result = await fetchCatalog();
       return result;
     },
+    refetchInterval: options?.refetchInterval ?? false,
   });
 }
 
@@ -37,7 +38,7 @@ export function useSession(sessionId: string | null, enabled = true) {
     enabled: Boolean(sessionId) && enabled,
     refetchInterval: (query) => {
       const state = query.state.data?.data.state;
-      return state === "HELD" ? 2000 : false;
+      return state === "HELD" || state === "FULFILL_PENDING" ? 2000 : false;
     },
   });
 }
@@ -50,12 +51,11 @@ export function useCheckoutMutations(onObservability?: (ids: ObservabilityIds) =
   };
 
   const startCheckout = useMutation({
-    mutationFn: async (payload: { cart: CartItem; customerName: string }) => {
+    mutationFn: async (payload: { cart: CartItem[]; customerName: string }) => {
       const created = await createSession();
       track(created.observability);
       const held = await placeHold(created.data.sessionId, {
-        sku: payload.cart.sku,
-        quantity: payload.cart.quantity,
+        items: payload.cart.map((line) => ({ sku: line.sku, quantity: line.quantity })),
         customerName: payload.customerName,
       });
       track(held.observability);

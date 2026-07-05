@@ -60,7 +60,7 @@ Browser → React UI (nginx) → Orchestrator (FastAPI)
                                   └→ EC-OPS (orders)
 ```
 
-Saga states: `CREATED → HELD → CONFIRMED | ABANDONED | COMPENSATED | RECONCILED`
+Saga states: `CREATED → HELD → CONFIRMED | FULFILL_PENDING → CONFIRMED | ABANDONED | COMPENSATED | RECONCILED`
 
 Key API routes:
 
@@ -68,11 +68,25 @@ Key API routes:
 |--------|------|---------|
 | GET | `/health` | Liveness + observability IDs |
 | GET | `/metrics` | Prometheus saga counters |
-| GET | `/catalog` | Product list |
+| GET | `/catalog` | Product list with live IHMS stock (`available_quantity`; `null` when IHMS inventory is unavailable) |
 | POST | `/sessions` | Start checkout session |
-| POST | `/sessions/{id}/hold` | Reserve inventory |
+| POST | `/sessions/{id}/hold` | Reserve inventory for one or more cart lines |
 | POST | `/sessions/{id}/confirm` | Place order (requires `Idempotency-Key`) |
 | DELETE | `/sessions/{id}` | Abandon / release hold |
+
+Hold request body (multi-item cart):
+
+```json
+{
+  "customer_name": "Jane Doe",
+  "items": [
+    { "sku": "WIDGET-001", "quantity": 2 },
+    { "sku": "GADGET-002", "quantity": 1 }
+  ]
+}
+```
+
+All lines are sent in a single atomic IHMS hold. Confirm maps every held line to EC-OPS order items.
 
 ## Documentation map
 

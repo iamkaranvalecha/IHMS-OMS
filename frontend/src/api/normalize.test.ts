@@ -17,6 +17,7 @@ describe("normalizeCatalogProduct", () => {
       ihms_product_id: "prod-1",
       ecops_item_code: "WIDGET-001",
       unit_price: 19.99,
+      available_quantity: 42,
     });
     expect(product).toEqual({
       sku: "WIDGET-001",
@@ -24,6 +25,7 @@ describe("normalizeCatalogProduct", () => {
       ihmsProductId: "prod-1",
       ecopsItemCode: "WIDGET-001",
       unitPrice: 19.99,
+      availableQuantity: 42,
     });
   });
 });

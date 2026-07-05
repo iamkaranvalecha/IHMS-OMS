@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCatalog, useCheckoutMutations, useSession } from "@/api/hooks";
 import { isApiError } from "@/api/types";
 import type { CartItem, ObservabilityIds } from "@/api/types";
+import { addToCart, removeFromCart, syncCartWithCatalog } from "@/cart";
 import { CartPanel } from "@/components/CartPanel";
 import { CatalogGrid } from "@/components/CatalogGrid";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
@@ -61,9 +62,13 @@ function isTerminalState(state: string): boolean {
   return ["CONFIRMED", "RECONCILED", "ABANDONED", "COMPENSATED"].includes(state);
 }
 
+function isActiveCheckout(state: string): boolean {
+  return state === "HELD" || state === "FULFILL_PENDING";
+}
+
 export function App() {
   const storedActiveCheckout = useMemo(() => readStoredActiveCheckout(), []);
-  const [cart, setCart] = useState<CartItem | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(
     storedActiveCheckout?.sessionId ?? null,
@@ -74,12 +79,14 @@ export function App() {
     storedActiveCheckout?.confirmIdempotencyKey ?? null,
   );
 
-  const catalogQuery = useCatalog();
   const sessionQuery = useSession(sessionId);
+  const session = sessionQuery.data?.data ?? null;
+  const catalogQuery = useCatalog({
+    refetchInterval: isActiveCheckout(session?.state ?? "") ? 2000 : false,
+  });
   const { startCheckout, confirmCheckout, abandonCheckout } = useCheckoutMutations(setObservability);
 
-  const session = sessionQuery.data?.data ?? null;
-  const checkoutActive = Boolean(session && !isTerminalState(session.state));
+  const checkoutActive = Boolean(session && isActiveCheckout(session.state));
 
   const products = useMemo(() => catalogQuery.data?.data ?? [], [catalogQuery.data]);
 
@@ -89,18 +96,33 @@ export function App() {
     }
   }, [session]);
 
-  const handleStartCheckout = async () => {
-    if (!cart) {
+  useEffect(() => {
+    setCart((current) => {
+      if (current.length === 0) {
+        return current;
+      }
+      return syncCartWithCatalog(current, products);
+    });
+  }, [products]);
+
+  const handleStartCheckout = async (checkoutCart: CartItem[]) => {
+    if (checkoutCart.length === 0) {
       return;
     }
     setError(null);
     try {
-      const result = await startCheckout.mutateAsync({ cart, customerName: customerName.trim() });
+      const result = await startCheckout.mutateAsync({
+        cart: checkoutCart,
+        customerName: customerName.trim(),
+      });
       const confirmIdempotencyKey = newIdempotencyKey();
       confirmIdempotencyKeyRef.current = confirmIdempotencyKey;
       writeStoredActiveCheckout(result.data.sessionId, confirmIdempotencyKey);
       setSessionId(result.data.sessionId);
     } catch (err) {
+      if (isApiError(err) && err.status === 409) {
+        void catalogQuery.refetch();
+      }
       setError(isApiError(err) ? err.detail : "Checkout failed");
     }
   };
@@ -117,6 +139,7 @@ export function App() {
       const result = await confirmCheckout.mutateAsync({ sessionId, idempotencyKey });
       if (isTerminalState(result.data.state)) {
         clearStoredActiveCheckout();
+        setCart([]);
       }
     } catch (err) {
       setError(isApiError(err) ? err.detail : "Confirm failed");
@@ -131,7 +154,7 @@ export function App() {
     try {
       await abandonCheckout.mutateAsync(sessionId);
       clearStoredActiveCheckout();
-      setCart(null);
+      setCart([]);
     } catch (err) {
       setError(isApiError(err) ? err.detail : "Abandon failed");
     }
@@ -158,15 +181,16 @@ export function App() {
           <CatalogGrid
             products={products}
             cart={cart}
-            onAdd={setCart}
+            onAdd={(item) => setCart((current) => addToCart(current, item))}
             disabled={checkoutActive || startCheckout.isPending}
           />
           <CartPanel
             cart={cart}
             customerName={customerName}
             onCustomerNameChange={setCustomerName}
-            onRemove={() => setCart(null)}
-            onCheckout={() => void handleStartCheckout()}
+            onCartChange={setCart}
+            onRemove={(sku) => setCart((current) => removeFromCart(current, sku))}
+            onCheckout={(checkoutCart) => void handleStartCheckout(checkoutCart)}
             checkoutPending={startCheckout.isPending}
             disabled={checkoutActive}
           />

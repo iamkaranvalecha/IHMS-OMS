@@ -3,6 +3,7 @@
 export type SessionState =
   | "CREATED"
   | "HELD"
+  | "FULFILL_PENDING"
   | "CONFIRMED"
   | "ABANDONED"
   | "COMPENSATED"
@@ -14,6 +15,7 @@ export interface CatalogProduct {
   ihmsProductId: string;
   ecopsItemCode: string;
   unitPrice: number;
+  availableQuantity: number | null;
 }
 
 export interface SessionLineItem {
@@ -50,6 +52,8 @@ export interface CartItem {
   name: string;
   unitPrice: number;
   quantity: number;
+  maxQuantity: number;
+  stockUnknown?: boolean;
 }
 
 export interface ApiError extends Error {

@@ -25,6 +25,10 @@ class HoldExpiredError(SagaError):
     """Hold TTL elapsed before confirm."""
 
 
+class InsufficientStockError(SagaError):
+    """Requested quantity exceeds available IHMS inventory."""
+
+
 class IdempotencyConflictError(SagaError):
     """Idempotency key reused with a different request payload."""
 

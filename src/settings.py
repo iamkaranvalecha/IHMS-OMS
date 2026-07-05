@@ -19,10 +19,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5180",
+        "http://127.0.0.1:5180",
     ]
 
     ihms_connect_timeout: float = 2.0
     ihms_read_timeout: float = 5.0
+    ihms_fulfill_optional: bool = True
     ecops_connect_timeout: float = 2.0
     ecops_read_timeout: float = 10.0
 

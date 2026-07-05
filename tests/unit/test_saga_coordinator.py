@@ -16,12 +16,19 @@ from src.gateway.exceptions import (
     UpstreamProblem,
 )
 from src.gateway.headers import ObservabilityHeaders
-from src.gateway.ihms_models import HoldItemResponse, HoldResponse, HoldStatus
+from src.gateway.ihms_models import (
+    HoldItemResponse,
+    HoldResponse,
+    HoldStatus,
+    InventoryItemResponse,
+)
 from src.saga.coordinator import SagaCoordinator
 from src.saga.exceptions import (
     CompensationIncompleteError,
     HoldExpiredError,
+    InsufficientStockError,
     InvalidStateTransitionError,
+    OrderStatusUnknownError,
     SessionNotFoundError,
 )
 from src.saga.idempotency import InMemoryIdempotencyStore
@@ -47,7 +54,14 @@ def saga(catalog: JsonCatalogProvider) -> SagaCoordinator:
     ihms = MagicMock()
     ihms.create_hold = AsyncMock()
     ihms.get_hold = AsyncMock()
+    ihms.get_inventory = AsyncMock(
+        return_value=[
+            InventoryItemResponse(product_id="prod-widget-001", available_quantity=100),
+            InventoryItemResponse(product_id="prod-gadget-002", available_quantity=100),
+        ]
+    )
     ihms.release_hold = AsyncMock()
+    ihms.fulfill_hold = AsyncMock()
     ecops = MagicMock()
     ecops.create_order = AsyncMock()
     ecops.find_order_by_client_reference = AsyncMock(return_value=None)
@@ -95,7 +109,7 @@ async def test_place_hold_transitions_to_held(
     )
 
     result = await saga.place_hold(
-        session.session_id, "WIDGET-001", 1, "Jane Doe", obs
+        session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs
     )
 
     assert result.state == SessionState.HELD
@@ -124,8 +138,8 @@ async def test_concurrent_place_hold_creates_single_upstream_hold(
     saga.ihms.create_hold.side_effect = create_hold
 
     results = await asyncio.gather(
-        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
-        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
+        saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs),
+        saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs),
         return_exceptions=True,
     )
 
@@ -156,6 +170,7 @@ async def test_confirm_happy_path(saga: SagaCoordinator, obs: ObservabilityHeade
     assert result.session.state == SessionState.CONFIRMED
     assert result.session.order_id == str(order_id)
     assert result.from_cache is False
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
 
 
 @pytest.mark.asyncio
@@ -215,6 +230,99 @@ async def test_idempotency_returns_cached_response(
 
 
 @pytest.mark.asyncio
+async def test_idempotency_cache_retries_fulfill(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.create_order.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+    )
+
+    await saga.confirm(session.session_id, None, "idem-fulfill-retry", obs)
+    saga.ihms.fulfill_hold.reset_mock()
+
+    cached = await saga.confirm(session.session_id, None, "idem-fulfill-retry", obs)
+
+    assert cached.from_cache is True
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_confirm_with_pending_idempotency_key_skips_duplicate_order_post(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session().model_copy(update={"idempotency_key": "idem-pending"})
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-pending", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+    saga.ecops.create_order.assert_not_awaited()
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_compensate_clears_idempotency_key(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    saga.ecops.create_order.side_effect = UpstreamError(
+        UpstreamProblem(status_code=500, detail="Order failed")
+    )
+
+    with pytest.raises(UpstreamError):
+        await saga.confirm(session.session_id, None, "idem-fail", obs)
+
+    updated = saga.sessions.get(session.session_id)
+    assert updated is not None
+    assert updated.state == SessionState.COMPENSATED
+    assert updated.idempotency_key is None
+
+
+@pytest.mark.asyncio
+async def test_confirm_skips_order_post_when_correlation_already_exists(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-existing-order", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+    saga.ecops.create_order.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_concurrent_duplicate_confirm_creates_single_order(
     saga: SagaCoordinator, obs: ObservabilityHeaders
 ) -> None:
@@ -252,21 +360,25 @@ async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: Observability
     saga.sessions.save(session)
     order_id = uuid4()
     saga.ecops.create_order.side_effect = GatewayTimeoutError("timeout")
-    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
-        id=order_id,
-        customer_name="Test Customer",
-        status=OrderStatus.PENDING,
-        created_at=datetime.now(UTC),
-        updated_at=None,
-        items=[],
-        client_reference="corr-unit",
-    )
+    saga.ecops.find_order_by_client_reference.side_effect = [
+        None,
+        OrderResponse(
+            id=order_id,
+            customer_name="Test Customer",
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            items=[],
+            client_reference="corr-unit",
+        ),
+    ]
 
     result = await saga.confirm(session.session_id, None, "idem-reconcile", obs)
 
     assert result.session.state == SessionState.RECONCILED
     assert result.session.order_id == str(order_id)
     saga.ihms.release_hold.assert_not_awaited()
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
 
 
 @pytest.mark.asyncio
@@ -297,7 +409,7 @@ async def test_timeout_without_reconciled_order_does_not_requery_after_miss(
     with pytest.raises(CompensationIncompleteError):
         await saga.confirm(session.session_id, None, "idem-timeout-miss", obs)
 
-    assert saga.ecops.find_order_by_client_reference.await_count == 3
+    assert saga.ecops.find_order_by_client_reference.await_count == 4
     saga.ihms.release_hold.assert_awaited_once_with("hold-1", obs)
     updated = saga.sessions.get(session.session_id)
     assert updated is not None
@@ -350,7 +462,7 @@ async def test_place_hold_unknown_session_raises(
     saga: SagaCoordinator, obs: ObservabilityHeaders
 ) -> None:
     with pytest.raises(SessionNotFoundError):
-        await saga.place_hold(uuid4(), "WIDGET-001", 1, "Jane", obs)
+        await saga.place_hold(uuid4(), [("WIDGET-001", 1)], "Jane", obs)
 
 
 @pytest.mark.asyncio
@@ -364,3 +476,154 @@ async def test_validate_hold_active_maps_409_to_expired(
 
     with pytest.raises(HoldExpiredError):
         await saga.validate_hold_active(session, obs)
+
+
+@pytest.mark.asyncio
+async def test_place_hold_rejects_insufficient_stock(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.get_inventory.return_value = [
+        InventoryItemResponse(product_id="prod-widget-001", available_quantity=0),
+    ]
+
+    with pytest.raises(InsufficientStockError):
+        await saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs)
+
+    saga.ihms.create_hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_fulfill_pending_when_fulfill_fails(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.create_order.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+    )
+    saga.ihms.fulfill_hold.side_effect = GatewayTimeoutError("timeout")
+
+    result = await saga.confirm(session.session_id, None, "idem-fulfill-pending", obs)
+
+    assert result.session.state == SessionState.FULFILL_PENDING
+    assert result.session.order_id == str(order_id)
+    saga.ihms.release_hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_retry_fulfill_pending_completes_checkout(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session().model_copy(
+        update={
+            "state": SessionState.FULFILL_PENDING,
+            "order_id": str(uuid4()),
+            "idempotency_key": "idem-retry-fulfill",
+        }
+    )
+    saga.sessions.save(session)
+    saga.ihms.fulfill_hold.side_effect = None
+
+    result = await saga.confirm(session.session_id, None, "idem-retry-fulfill", obs)
+
+    assert result.session.state == SessionState.CONFIRMED
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
+
+
+@pytest.mark.asyncio
+async def test_abandon_rejects_fulfill_pending(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session().model_copy(
+        update={
+            "state": SessionState.FULFILL_PENDING,
+            "order_id": str(uuid4()),
+            "idempotency_key": "idem-abandon-blocked",
+        }
+    )
+    saga.sessions.save(session)
+
+    with pytest.raises(InvalidStateTransitionError):
+        await saga.abandon(session.session_id, obs)
+
+
+@pytest.mark.asyncio
+async def test_resolve_missing_order_raises_unknown_not_compensate(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session().model_copy(update={"idempotency_key": "idem-missing-order"})
+    saga.sessions.save(session)
+    saga.ecops.find_order_by_client_reference.return_value = None
+
+    with pytest.raises(OrderStatusUnknownError):
+        await saga.confirm(session.session_id, None, "idem-missing-order", obs)
+
+    updated = saga.sessions.get(session.session_id)
+    assert updated is not None
+    assert updated.state == SessionState.HELD
+    saga.ihms.release_hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_place_hold_multi_item(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.create_hold.return_value = HoldResponse(
+        hold_id="hold-multi",
+        status=HoldStatus.ACTIVE,
+        items=[
+            HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=2),
+            HoldItemResponse(product_id="prod-gadget-002", name="Gadget", quantity=1),
+        ],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    result = await saga.place_hold(
+        session.session_id,
+        [("WIDGET-001", 2), ("GADGET-002", 1)],
+        "Jane Doe",
+        obs,
+    )
+
+    assert result.state == SessionState.HELD
+    assert len(result.line_items) == 2
+    assert {item.sku for item in result.line_items} == {"WIDGET-001", "GADGET-002"}
+    assert saga.ihms.create_hold.await_args.args[0][0].product_id == "prod-widget-001"
+    assert saga.ihms.create_hold.await_args.args[0][1].product_id == "prod-gadget-002"
+
+
+@pytest.mark.asyncio
+async def test_place_hold_merges_duplicate_skus(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.create_hold.return_value = HoldResponse(
+        hold_id="hold-merge",
+        status=HoldStatus.ACTIVE,
+        items=[HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=3)],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    result = await saga.place_hold(
+        session.session_id,
+        [("WIDGET-001", 1), ("WIDGET-001", 2)],
+        "Jane Doe",
+        obs,
+    )
+
+    assert len(result.line_items) == 1
+    assert result.line_items[0].quantity == 3
+    assert saga.ihms.create_hold.await_args.args[0][0].quantity == 3

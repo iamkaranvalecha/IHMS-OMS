@@ -3,6 +3,11 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from src.catalog.inventory import (
+    CatalogProductWithAvailability,
+    get_product_with_inventory,
+    list_catalog_with_inventory,
+)
 from src.catalog.provider import CatalogProduct, CatalogProvider
 from src.gateway.ecops_client import EcOpsClient
 from src.gateway.headers import ObservabilityHeaders
@@ -65,18 +70,30 @@ class CheckoutService:
     def list_catalog(self) -> list[CatalogProduct]:
         return self.catalog.list_products()
 
+    async def list_catalog_with_inventory(
+        self,
+        headers: ObservabilityHeaders,
+    ) -> list[CatalogProductWithAvailability]:
+        return await list_catalog_with_inventory(self.catalog, self.ihms, headers)
+
+    async def get_product_with_inventory(
+        self,
+        sku: str,
+        headers: ObservabilityHeaders,
+    ) -> CatalogProductWithAvailability | None:
+        return await get_product_with_inventory(self.catalog, self.ihms, sku, headers)
+
     def get_product(self, sku: str) -> CatalogProduct | None:
         return self.catalog.get_product(sku)
 
     async def place_hold(
         self,
         session_id: UUID,
-        sku: str,
-        quantity: int,
+        items: list[tuple[str, int]],
         customer_name: str,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
-        return await self.saga.place_hold(session_id, sku, quantity, customer_name, headers)
+        return await self.saga.place_hold(session_id, items, customer_name, headers)
 
     async def confirm(
         self,
@@ -88,7 +105,7 @@ class CheckoutService:
         session = self.sessions.get(session_id)
         if (
             session is not None
-            and session.state == SessionState.HELD
+            and session.state in (SessionState.HELD, SessionState.FULFILL_PENDING)
             and session.idempotency_key is None
         ):
             await self.saga.validate_hold_active(session, headers)
