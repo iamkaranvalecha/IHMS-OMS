@@ -59,9 +59,8 @@ Compose files:
 | File | Purpose |
 |------|---------|
 | `docker/compose.base.yml` | Shared networks/volumes |
+| `docker/compose.dev.yml` | Deploy stack → host upstreams (Lane 2) |
 | `docker/compose.full.yml` | Mock upstreams + full stack (CI Lane 1b) |
-| `docker/compose.upstream.yml` | Real upstreams on host (Lane 2 external) |
-| `docker/compose.bundle.yml` | Bundled KB-IHMS + EC-OPS siblings |
 | `docker/compose.observability.yml` | Prometheus (`--profile obs`) |
 | `docker/prometheus/prometheus.yml` | Scrape target `orchestrator:8000/metrics` |
 

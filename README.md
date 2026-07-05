@@ -36,18 +36,18 @@ STACK=1 bash scripts/verify.sh        # runs unit + integration + e2e
 bash scripts/e2e-stack.sh down
 ```
 
-### Real upstreams (KB-IHMS + EC-OPS already in Docker)
+### Deploy (real upstreams on host)
 
-When the other two repos are deployed on the host:
+Start [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) (`docker compose up`) and [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) (`:8002`) first, then:
 
 ```bash
 cp .env.example .env
-bash scripts/ecops-token.sh           # EC-OPS JWT → .env
-bash scripts/upstream-stack.sh up     # UI http://localhost:5180
-bash scripts/upstream-stack.sh down
+bash scripts/ecops-token.sh
+bash scripts/deploy-stack.sh up    # UI http://localhost:5180
+bash scripts/deploy-stack.sh down
 ```
 
-Bundled sibling build (all three repos on one machine): see [docs/DOCKER.md](docs/DOCKER.md).
+See [docs/DOCKER.md](docs/DOCKER.md) for the full three-repo layout.
 
 **Observability stack** (Prometheus scrapes `/metrics`):
 
@@ -57,7 +57,7 @@ bash scripts/obs-stack.sh up
 bash scripts/obs-stack.sh down
 ```
 
-The full stack uses **wire-compatible mock upstreams** (`docker/mock-upstreams/`) so CI and local demos do not depend on external image registries. For real KB-IHMS + EC-OPS deployments use `bash scripts/upstream-stack.sh up` — see [docs/DOCKER.md](docs/DOCKER.md).
+Mock E2E uses **wire-compatible upstreams** in `docker/mock-upstreams/` (CI default). Deploy against real services with `bash scripts/deploy-stack.sh up` — [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Architecture snapshot
 
@@ -92,7 +92,7 @@ Key API routes:
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module layout and boundaries |
 | [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) | Failure matrix |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Request / Correlation / Trace IDs |
-| [docs/DOCKER.md](docs/DOCKER.md) | Real upstream + bundled Docker deployment |
+| [docs/DOCKER.md](docs/DOCKER.md) | Deploy stack vs mock E2E |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Timeouts, retries, pooling |
 | [docs/sequences/](docs/sequences/) | Per-flow sequence diagrams |
 | [docs/adr/](docs/adr/) | Architectural decision records |
@@ -102,10 +102,8 @@ Key API routes:
 
 | Stack | Command |
 |-------|---------|
-| Orchestrator only (dev) | `docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up` |
+| **Deploy** (KB-IHMS + EC-OPS on host) | `bash scripts/deploy-stack.sh up` |
 | Mock E2E (CI) | `bash scripts/e2e-stack.sh up` |
-| **Real upstreams (deployed)** | `bash scripts/upstream-stack.sh up` |
-| Bundled siblings | `bash scripts/upstream-stack.sh up --bundle` |
 | Mock + Prometheus | `bash scripts/obs-stack.sh up` |
 
 Full guide: [docs/DOCKER.md](docs/DOCKER.md). Orchestrator containers default to `LOG_JSON=true`. UI nginx proxies `/health` and `/metrics`.
@@ -117,4 +115,4 @@ Full guide: [docs/DOCKER.md](docs/DOCKER.md). Orchestrator containers default to
 
 ## Status
 
-**Phase 6 complete (v0.6.0)** — observability + mock E2E. **Phase 7** adds real upstream Docker (`scripts/upstream-stack.sh`). See [ROADMAP.md](ROADMAP.md).
+**Phase 7 (v0.7.0)** — deploy stack wired to KB-IHMS docker + EC-OPS on host. See [ROADMAP.md](ROADMAP.md).

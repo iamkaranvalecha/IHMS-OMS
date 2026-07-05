@@ -1,11 +1,11 @@
-"""Regression tests for the real-upstream stack helper."""
+"""Regression tests for the deploy stack helper."""
 
 import os
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "upstream-stack.sh"
+SCRIPT = ROOT / "scripts" / "deploy-stack.sh"
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -21,7 +21,6 @@ def _run_stack(tmp_path: Path, *args: str) -> tuple[subprocess.CompletedProcess[
     _write_executable(
         fake_bin / "docker",
         """#!/usr/bin/env bash
-printf 'ECOPS_DOCKERFILE=%s\\n' "${ECOPS_DOCKERFILE:-}" >> "$DOCKER_LOG"
 printf 'args:' >> "$DOCKER_LOG"
 for arg in "$@"; do
   printf '<%s>' "$arg" >> "$DOCKER_LOG"
@@ -40,8 +39,7 @@ exit 0
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
     env["DOCKER_LOG"] = str(docker_log)
-    env["ECOPS_BEARER_TOKEN"] = ""
-    env.pop("ECOPS_DOCKERFILE", None)
+    env["ECOPS_BEARER_TOKEN"] = "test-token"
 
     result = subprocess.run(
         ["bash", str(SCRIPT), *args],
@@ -54,26 +52,24 @@ exit 0
     return result, docker_log.read_text(encoding="utf-8") if docker_log.exists() else ""
 
 
-def test_upstream_stack_accepts_bundle_flag_after_command(tmp_path: Path) -> None:
-    result, docker_log = _run_stack(tmp_path, "up", "--bundle")
+def test_deploy_stack_uses_dev_compose(tmp_path: Path) -> None:
+    result, docker_log = _run_stack(tmp_path, "up")
 
     assert result.returncode == 0, result.stderr + result.stdout
-    assert "Starting upstream stack (mode=bundle)" in result.stdout
-    assert "<-f><docker/compose.bundle.yml>" in docker_log
-    assert "<-f><docker/compose.upstream.yml>" not in docker_log
-    assert f"ECOPS_DOCKERFILE={ROOT / 'docker/upstream/ecops/Dockerfile'}" in docker_log
+    assert "Starting deploy stack" in result.stdout
+    assert "<-f><docker/compose.dev.yml>" in docker_log
 
 
-def test_upstream_stack_down_preserves_volumes_by_default(tmp_path: Path) -> None:
-    result, docker_log = _run_stack(tmp_path, "down", "--bundle")
+def test_deploy_stack_down_preserves_volumes_by_default(tmp_path: Path) -> None:
+    result, docker_log = _run_stack(tmp_path, "down")
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert "<down><--remove-orphans>" in docker_log
     assert "<-v>" not in docker_log
 
 
-def test_upstream_stack_down_removes_volumes_only_when_requested(tmp_path: Path) -> None:
-    result, docker_log = _run_stack(tmp_path, "down", "--bundle", "--volumes")
+def test_deploy_stack_down_removes_volumes_only_when_requested(tmp_path: Path) -> None:
+    result, docker_log = _run_stack(tmp_path, "down", "--volumes")
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert "<down><--remove-orphans><-v>" in docker_log

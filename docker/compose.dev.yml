@@ -1,5 +1,12 @@
-# Orchestrator-only dev stack. Upstreams started separately or mocked.
-# Usage: docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+# Orchestrator + checkout UI — connects to KB-IHMS and EC-OPS running on the host.
+#
+# Prerequisites (start from sibling repos):
+#   KB-IHMS:  cd ../KB-IHMS && docker compose up -d     → :5000
+#   EC-OPS:   running on host :8002 (no docker-compose in that repo)
+#
+# Usage:
+#   cp .env.example .env && bash scripts/ecops-token.sh
+#   bash scripts/deploy-stack.sh up
 
 x-orchestrator-env: &orchestrator-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -38,18 +45,17 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
       timeout: 3s
-      retries: 6
-      start_period: 10s
+      retries: 12
+      start_period: 15s
 
   ui:
-    profiles: ["ui"]
     build:
       context: ../frontend
       dockerfile: Dockerfile
     ports:
-      - "${UI_PORT:-5173}:5173"
+      # 5180 avoids clashing with KB-IHMS frontend on host 5173
+      - "${UI_PORT:-5180}:5173"
     environment:
-      # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
       VITE_API_URL: ""
     depends_on:
       orchestrator:
@@ -60,5 +66,5 @@ services:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5173/health"]
       interval: 10s
       timeout: 3s
-      retries: 6
-      start_period: 10s
+      retries: 10
+      start_period: 15s

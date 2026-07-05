@@ -1,142 +1,61 @@
-# Docker deployment
+# Docker
 
-Three-repo layout for the distributed checkout platform. KB-IHMS and EC-OPS ship their own Docker stacks; this repo adds orchestrator + checkout UI wiring.
+Three compose stacks — one per purpose:
 
-## Stack modes
+| Stack | Files | Command |
+|-------|-------|---------|
+| **Deploy** (real upstreams) | `compose.base.yml` + `compose.dev.yml` | `bash scripts/deploy-stack.sh up` |
+| **Mock E2E** (CI) | `compose.base.yml` + `compose.full.yml` | `bash scripts/e2e-stack.sh up` |
+| **Observability** | + `compose.observability.yml --profile obs` | `OBS_STACK=1 bash scripts/obs-stack.sh up` |
 
-| Mode | Compose files | When to use |
-|------|---------------|-------------|
-| **Mock E2E** (CI default) | `compose.base.yml` + `compose.full.yml` | PR CI, local regression without upstream repos |
-| **External upstream** | `compose.base.yml` + `compose.upstream.yml` | KB-IHMS + EC-OPS already running on the host |
-| **Bundled upstream** | `compose.base.yml` + `compose.bundle.yml` | All three repos cloned as siblings on one machine |
-| **Dev orchestrator only** | `compose.base.yml` + `compose.dev.yml` | Orchestrator container pointing at host upstreams |
+## Deploy against sibling repos
 
-## Recommended directory layout
-
-```
-parent/
-  KB-IHMS/     ← docker compose up  (API on host :5000)
-  EC-OPS/      ← running on host :8002 (or built via bundle)
-  IHMS-OMS/    ← this repo
-```
-
-## External upstream (deployed KB-IHMS + EC-OPS)
-
-Start upstream repos first:
+KB-IHMS ships `docker-compose.yml` (API **:5000**, frontend **:5173**). EC-OPS has **no** docker-compose — run it on the host at **:8002** with PostgreSQL (see [EC-OPS README](https://github.com/iamkaranvalecha/EC-OPS)).
 
 ```bash
-# Terminal 1 — KB-IHMS (from their repo)
-cd ../KB-IHMS && docker compose up --build
+# 1. KB-IHMS (from ../KB-IHMS)
+docker compose up -d --build
 
-# Terminal 2 — EC-OPS (from their repo, or your existing deployment)
-cd ../EC-OPS && uv run python -m src.main   # or your docker setup on :8002
-```
+# 2. EC-OPS (from ../EC-OPS) — local process or your deployment
+uv run python scripts/setup.py && uv run python -m src.main
 
-Then start IHMS-OMS against those services:
-
-```bash
-cd IHMS-OMS
+# 3. IHMS-OMS
 cp .env.example .env
-bash scripts/ecops-token.sh          # writes ECOPS_BEARER_TOKEN to .env
-bash scripts/upstream-stack.sh up
+bash scripts/ecops-token.sh
+bash scripts/deploy-stack.sh up
 ```
 
 | Service | URL |
 |---------|-----|
 | Checkout UI | http://localhost:5180 |
 | Orchestrator | http://localhost:8000 |
-| KB-IHMS (host) | http://localhost:5000 |
-| EC-OPS (host) | http://localhost:8002 |
+| KB-IHMS API | http://localhost:5000 |
+| EC-OPS API | http://localhost:8002 |
 
-The orchestrator container reaches host upstreams via `host.docker.internal` (Linux: `extra_hosts: host-gateway`).
+Orchestrator reaches host upstreams via `host.docker.internal`.
 
-### EC-OPS authentication
-
-EC-OPS requires a JWT Bearer token for `/orders`. Set `ECOPS_BEARER_TOKEN` in `.env`:
+### EC-OPS JWT
 
 ```bash
 bash scripts/ecops-token.sh
-# or manually:
-curl -X POST http://localhost:8002/auth/token -d "username=admin&password=YOUR_PASSWORD"
+bash scripts/deploy-stack.sh up   # reads ECOPS_BEARER_TOKEN from .env
 ```
 
-Restart orchestrator after updating the token:
+`bash scripts/deploy-stack.sh down` preserves compose volumes by default. Pass `--volumes` to remove them.
 
-```bash
-bash scripts/upstream-stack.sh restart orchestrator
-```
+## Mock stack (CI)
 
-## Bundled upstream (build siblings from disk)
-
-Builds KB-IHMS API + EC-OPS API + orchestrator + UI on one Docker network. Does **not** start KB-IHMS frontend (avoids port 5173 clash).
-
-```bash
-KB_IHMS_PATH=../KB-IHMS ECOPS_PATH=../EC-OPS bash scripts/upstream-stack.sh up --bundle
-bash scripts/ecops-token.sh
-bash scripts/upstream-stack.sh restart orchestrator
-```
-
-EC-OPS is built using `docker/upstream/ecops/Dockerfile` with build context pointing at the sibling EC-OPS checkout — the assignment repo is not modified.
-
-`bash scripts/upstream-stack.sh down --bundle` preserves KB-IHMS MongoDB and EC-OPS
-Postgres volumes. To intentionally reset bundled upstream data, run
-`bash scripts/upstream-stack.sh down --bundle --volumes`.
-
-## Mock stack (CI / Lane 1b)
-
-Unchanged — wire-compatible mocks for deterministic E2E:
+Unchanged — wire-compatible mocks, no external repos:
 
 ```bash
 bash scripts/e2e-stack.sh up
 STACK=1 bash scripts/verify.sh
-bash scripts/e2e-stack.sh down
 ```
-
-## Observability overlay
-
-Prometheus works with any stack mode:
-
-```bash
-OBS_STACK=1 bash scripts/upstream-stack.sh up
-OBS_STACK=1 bash scripts/upstream-stack.sh up --bundle
-bash scripts/obs-stack.sh up   # mock stack + Prometheus
-```
-
-## Environment reference
-
-See [.env.example](../.env.example). Key variables:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `IHMS_BASE_URL` | `http://host.docker.internal:5000` | KB-IHMS API (external mode) |
-| `ECOPS_BASE_URL` | `http://host.docker.internal:8002` | EC-OPS API (external mode) |
-| `ECOPS_BEARER_TOKEN` | *(required external)* | JWT for EC-OPS order endpoints |
-| `UI_PORT` | `5180` | Checkout UI host port |
-| `KB_IHMS_PATH` | `../KB-IHMS` | Sibling path for bundle build |
-| `ECOPS_PATH` | `../EC-OPS` | Sibling path for bundle build |
-
-## Lane 2 smoke (real upstreams)
-
-After the stack is up, exercise checkout manually via UI or curl. Record results in [AI-USAGE.md](../AI-USAGE.md).
-
-```bash
-# Health checks
-curl http://localhost:8000/health
-curl http://localhost:5000/health
-curl http://localhost:8002/health
-
-# Full verify with mocks remains CI default:
-bash scripts/verify.sh
-```
-
-Real-upstream E2E is intentionally manual — upstream data seeding and auth differ from mocks.
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---------|-------|
-| Orchestrator 502 on hold | KB-IHMS reachable from container: `docker compose logs orchestrator` |
-| Confirm returns 401/403 | `ECOPS_BEARER_TOKEN` set and not expired (24h default) |
-| UI port conflict | KB-IHMS frontend uses 5173; checkout UI defaults to **5180** |
-| Bundle EC-OPS build fails | `ECOPS_PATH` points at EC-OPS repo root with `pyproject.toml` |
-| Bundle IHMS build fails | `KB_IHMS_PATH` points at KB-IHMS repo root with `Dockerfile` |
+| Symptom | Fix |
+|---------|-----|
+| Hold fails | KB-IHMS up? `curl http://localhost:5000/health` |
+| Confirm 401 | `ECOPS_BEARER_TOKEN` expired — re-run `ecops-token.sh` |
+| Port clash on UI | KB-IHMS uses 5173; checkout UI uses **5180** |

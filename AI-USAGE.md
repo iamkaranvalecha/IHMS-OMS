@@ -33,43 +33,40 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — Phase 6 observability | passed | verify.sh 26 unit + 20 integration; JSON logs, /metrics, saga step logging |
-| 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; Lane 2 compose + upstream-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
+| 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; deploy-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
 | 2026-07-05 | Bug-finding automation — upstream stack data preservation | passed | `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Cloud Agent — simplified Docker merge | passed | verify.sh 29 unit; deploy-stack volume-safe down retained from PR #22 |
 
 ## Session log
 
-### 2026-07-05 — Upstream stack data preservation bug fix
+### 2026-07-05 — Simplified Docker deploy (v0.7.0)
+
+**User query:** Simplify Docker; check other repos.
+
+**Findings:**
+- KB-IHMS: official `docker-compose.yml` — API `:5000`, frontend `:5173`
+- EC-OPS: no docker-compose — runs on host `:8002` with PostgreSQL
+
+**Actions:**
+- Removed duplicate `compose.upstream.yml`, `compose.bundle.yml`, custom EC-OPS Dockerfile
+- Single deploy stack: `compose.dev.yml` + `scripts/deploy-stack.sh`
+- Ported volume-safe `down` from PR #22 (`--volumes` opt-in)
+- Docs trimmed to three-repo workflow (use upstream docker as-is)
+
+### 2026-07-05 — Upstream stack data preservation bug fix (PR #22, refactored)
 
 **User query:** Deep bug-finding automation for PR #21; fix only critical correctness bugs.
 
 **Bug and impact:**
-- `scripts/upstream-stack.sh down` always ran `docker compose down -v`. In bundled real-upstream mode, that deletes KB-IHMS MongoDB and EC-OPS Postgres named volumes, so the documented stop command could erase upstream data.
-- The documented `up --bundle` form was parsed as external mode, and the EC-OPS build default pointed at a Dockerfile path inside the EC-OPS checkout that does not exist, preventing the bundled stack from starting.
+- `scripts/upstream-stack.sh down` always ran `docker compose down -v`. In bundled mode, that deleted KB-IHMS MongoDB and EC-OPS Postgres volumes.
+- Bundle flag parsing and EC-OPS Dockerfile path issues blocked the bundled stack.
 
-**Human audit — rejected AI shortcuts:**
-- Rejected treating bundled mode as disposable mock E2E; it is the Lane 2 real-upstream demo path and must not destroy persisted upstream data by default.
-- Rejected a docs-only warning; the safe default belongs in the script, with destructive volume removal explicit.
-
-**Actions:**
-- Changed `scripts/upstream-stack.sh down` to preserve volumes by default and added explicit `--volumes` opt-in.
-- Made stack mode flags order-independent so `bash scripts/upstream-stack.sh up --bundle` selects bundled compose as documented.
-- Exported the orchestrator-owned EC-OPS Dockerfile path for bundle builds and added a compose fallback for the recommended sibling layout.
-- Added unit regressions that exercise the shell helper through fake `docker` and `curl` binaries.
+**Actions (merged to main, then superseded by simplification):**
+- Volume preservation and `--volumes` opt-in retained in `scripts/deploy-stack.sh`
+- Bundled stack removed — use KB-IHMS `docker-compose.yml` directly instead
 
 **Verification:**
-- `python3 -m pytest tests/unit/test_upstream_stack_script.py -q` -> 3 passed.
-- `bash scripts/verify.sh` -> passed (29 unit, 7 contract, 7 component, 20 integration; e2e skipped unless `STACK=1`).
-
-### 2026-07-05 — Real upstream Docker deployment (v0.7.0)
-
-**User query:** Add Docker implementation; KB-IHMS and EC-OPS already deployed in Docker.
-
-**Actions:**
-- `docker/compose.upstream.yml` — orchestrator + UI wired to host upstreams via `host.docker.internal`
-- `docker/compose.bundle.yml` — bundled KB-IHMS + EC-OPS + orchestrator on shared network
-- `docker/upstream/ecops/Dockerfile` — build EC-OPS from sibling path without modifying assignment repo
-- `scripts/upstream-stack.sh`, `scripts/ecops-token.sh`, `.env.example`, `docs/DOCKER.md`
-- EC-OPS JWT via `ECOPS_BEARER_TOKEN`; checkout UI on port 5180 (avoids KB-IHMS frontend 5173)
+- `python3 -m pytest tests/unit/test_deploy_stack_script.py -q` → 3 passed
 
 ### 2026-07-05 — Phase 6 observability + testing (v0.6.0)
 

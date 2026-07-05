@@ -36,11 +36,10 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ### Phase 7 deliverables
 
-- [x] `docker/compose.upstream.yml` — orchestrator + UI → host upstreams
-- [x] `docker/compose.bundle.yml` — KB-IHMS + EC-OPS + orchestrator bundle
-- [x] `docker/upstream/ecops/Dockerfile` — build EC-OPS from sibling path
-- [x] `scripts/upstream-stack.sh`, `scripts/ecops-token.sh`
-- [x] `.env.example`, `docs/DOCKER.md`; version 0.7.0
+- [x] `docker/compose.dev.yml` — orchestrator + UI → host upstreams (`host.docker.internal`)
+- [x] `scripts/deploy-stack.sh`, `scripts/ecops-token.sh`, `.env.example`
+- [x] `docs/DOCKER.md` aligned with KB-IHMS docker-compose + EC-OPS host process
+- [x] version 0.7.0
 
 ---
 
