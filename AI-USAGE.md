@@ -36,8 +36,26 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; deploy-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
 | 2026-07-05 | Bug-finding automation — upstream stack data preservation | passed | `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — simplified Docker merge | passed | verify.sh 29 unit; deploy-stack volume-safe down retained from PR #22 |
+| 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Real-upstream env example bug fix
+
+**User query:** Deep bug-finding automation for PR #25; fix only critical correctness bugs.
+
+**Bug and impact:**
+- PR #25 changed `.env.example` so the real-upstream `IHMS_BASE_URL`, `ECOPS_BASE_URL`, and `UI_PORT=5180` values were comments.
+- The documented flow copies `.env.example` to `.env`, fetches an EC-OPS token, then starts only `orchestrator ui` with `--no-deps`. With the URLs commented out, the orchestrator still targets mock Docker DNS names (`ihms`, `ecops`) even though those services are intentionally not started; with the UI port commented out, it also collides with KB-IHMS' frontend on `:5173`.
+
+**Actions:**
+- Restored executable real-upstream defaults in `.env.example`.
+- Documented the real-upstream UI URL as `http://localhost:5180`.
+- Added a unit regression that asserts `.env.example` keeps those values uncommented.
+
+**Verification:**
+- `python3 -m pytest tests/unit/test_ecops_token_script.py -q` -> 3 passed.
+- `bash scripts/verify.sh` -> passed (29 unit, 7 contract, 7 component, 20 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — Simplified Docker deploy (v0.7.0)
 
@@ -315,3 +333,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Deep bug-finding automation on PR #11 — frontend container API proxy |
 | 2026-07-05 | Deep bug-finding automation on PR #15 — reconciliation lookup failure and correlation collision |
 | 2026-07-05 | Deep bug-finding automation on PR #21 — upstream stack volume deletion |
+| 2026-07-05 | Deep bug-finding automation on PR #25 — real-upstream env example |
