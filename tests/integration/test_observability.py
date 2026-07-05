@@ -19,6 +19,7 @@ def settings() -> Settings:
         ihms_base_url="http://ihms.test",
         ecops_base_url="http://ecops.test",
         ecops_bearer_token="test-token",
+        catalog_source="json",
     )
 
 

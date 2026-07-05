@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -16,6 +17,8 @@ from src.gateway.factory import gateway_clients
 from src.observability.logging import configure_logging
 from src.session.store import InMemorySessionStore
 from src.settings import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -39,6 +42,12 @@ async def lifespan(app: FastAPI):
             ecops=ecops,
             ihms_catalog_cache=ihms_catalog_cache,
             ecops_mapping=ecops_mapping,
+        )
+        logger.info(
+            "checkout orchestrator ready: catalog_source=%s ihms_base_url=%s ecops_base_url=%s",
+            settings.catalog_source,
+            settings.ihms_base_url,
+            settings.ecops_base_url,
         )
         yield
 

@@ -88,7 +88,7 @@ Hold request body (multi-item cart):
 
 All lines are sent in a single atomic IHMS hold. Confirm maps every held line to EC-OPS order items.
 
-**Catalog sources:** Default `CATALOG_SOURCE=json` uses `catalog/products.json` (mock stack). For real KB-IHMS, set `CATALOG_SOURCE=ihms` — the orchestrator calls `GET /api/products` and maps SKUs to EC-OPS line codes via `catalog/ecops-mapping.json` (defaults to same SKU).
+**Catalog sources:** Default `CATALOG_SOURCE=ihms` calls `GET /api/products` on KB-IHMS. For the all-mock Docker stack, mock IHMS serves the same endpoint. For **real** KB-IHMS products (Mouse, Keyboard, …), run `bash scripts/real-upstream.sh` after starting KB-IHMS (:5000) and EC-OPS (:8002). Set `CATALOG_SOURCE=json` only to force legacy `catalog/products.json`.
 
 ## Documentation map
 

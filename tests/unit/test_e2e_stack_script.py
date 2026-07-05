@@ -65,6 +65,7 @@ def test_e2e_stack_forces_mock_compose_env_over_real_upstream_dotenv(
   printf 'IHMS_PORT=%s\\n' "$IHMS_PORT"
   printf 'ECOPS_PORT=%s\\n' "$ECOPS_PORT"
   printf 'UI_PORT=%s\\n' "$UI_PORT"
+  printf 'CATALOG_SOURCE=%s\\n' "$CATALOG_SOURCE"
 } >> "$DOCKER_LOG"
 """,
     )
@@ -108,4 +109,5 @@ exit 0
     assert "IHMS_PORT=8080" in log
     assert "ECOPS_PORT=8012" in log
     assert "UI_PORT=5180" in log
+    assert "CATALOG_SOURCE=ihms" in log
     assert "host.docker.internal" not in log

@@ -14,7 +14,7 @@
 x-orchestrator-env: &orchestrator-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   LOG_JSON: ${LOG_JSON:-true}
-  CATALOG_SOURCE: ${CATALOG_SOURCE:-json}
+  CATALOG_SOURCE: ${CATALOG_SOURCE:-ihms}
   CATALOG_PATH: /app/catalog/products.json
   ECOPS_MAPPING_PATH: /app/catalog/ecops-mapping.json
 

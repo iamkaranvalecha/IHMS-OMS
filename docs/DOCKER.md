@@ -19,24 +19,35 @@ Prometheus: `docker compose --profile obs up --build` → http://localhost:9090
 
 E2E tests: `STACK=1 bash scripts/verify.sh` (uses `scripts/e2e-stack.sh` internally)
 
-## Real KB-IHMS + EC-OPS (optional)
+## Real KB-IHMS + EC-OPS (demo / interview)
 
-Start upstreams from their repos first, then run orchestrator + UI only:
+Start upstreams from their repos first, then one command:
 
 ```bash
 # KB-IHMS: cd ../KB-IHMS && docker compose up -d
 # EC-OPS:  cd ../EC-OPS && uv run python -m src.main
 
-cp .env.example .env
-bash scripts/ecops-token.sh
-
-docker compose up orchestrator ui --no-deps --build
+ECOPS_USERNAME=admin ECOPS_PASSWORD=secret bash scripts/real-upstream.sh
 ```
 
-With the example env, the checkout UI is exposed at http://localhost:5180 to avoid
-KB-IHMS' frontend on http://localhost:5173.
+This creates/updates `.env` (`CATALOG_SOURCE=ihms`, upstream URLs), fetches the EC-OPS JWT, and starts orchestrator + UI only.
 
-`ecops-token.sh` maps `host.docker.internal` to `localhost` when fetching the JWT from your host.
+Verify catalog shows real IHMS products:
+
+```bash
+curl -s http://localhost:8000/catalog | head
+# expect MOUSE-001, KEYBOARD-002, … not WIDGET-001
+```
+
+Checkout UI: http://localhost:5180 (avoids KB-IHMS frontend on :5173).
+
+Manual alternative:
+
+```bash
+cp .env.example .env
+bash scripts/ecops-token.sh
+docker compose up orchestrator ui --no-deps --build
+```
 
 ## Troubleshooting
 

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     ecops_base_url: str = "http://localhost:8002"
     ecops_bearer_token: str = ""
 
-    catalog_source: Literal["json", "ihms"] = "json"
+    catalog_source: Literal["json", "ihms"] = "ihms"
     catalog_path: Path = Path("catalog/products.json")
     ecops_mapping_path: Path = Path("catalog/ecops-mapping.json")
 
