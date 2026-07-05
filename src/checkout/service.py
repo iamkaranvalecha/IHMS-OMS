@@ -1,5 +1,6 @@
 """Checkout workflow entry points."""
 
+import logging
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -10,14 +11,18 @@ from src.catalog.inventory import (
     get_product_with_inventory,
     list_catalog_with_inventory,
 )
-from src.catalog.provider import CatalogProduct, CatalogProvider
+from src.catalog.provider import CatalogProduct, CatalogProvider, JsonCatalogProvider
 from src.gateway.ecops_client import EcOpsClient
+from src.gateway.exceptions import GatewayError
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_client import IhmsClient
 from src.saga.coordinator import ConfirmResult, SagaCoordinator
 from src.saga.idempotency import IdempotencyStore, InMemoryIdempotencyStore
 from src.session.models import CheckoutSession, SessionState
 from src.session.store import LockedSessionStore, SessionStore
+from src.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,6 +37,8 @@ class CheckoutService:
     saga: SagaCoordinator
     ihms_catalog_cache: IhmsCatalogCache | None = None
     ecops_mapping: EcopsMapping | None = None
+    json_catalog_fallback: JsonCatalogProvider | None = None
+    settings: Settings | None = None
 
     @classmethod
     def create(
@@ -44,6 +51,8 @@ class CheckoutService:
         idempotency: IdempotencyStore | None = None,
         ihms_catalog_cache: IhmsCatalogCache | None = None,
         ecops_mapping: EcopsMapping | None = None,
+        json_catalog_fallback: JsonCatalogProvider | None = None,
+        settings: Settings | None = None,
     ) -> "CheckoutService":
         if isinstance(sessions, LockedSessionStore):
             locked = sessions
@@ -66,7 +75,57 @@ class CheckoutService:
             saga=saga,
             ihms_catalog_cache=ihms_catalog_cache,
             ecops_mapping=ecops_mapping,
+            json_catalog_fallback=json_catalog_fallback,
+            settings=settings,
         )
+
+    def _fallback_enabled(self) -> bool:
+        return (
+            self.json_catalog_fallback is not None
+            and (self.settings is None or self.settings.catalog_fallback_to_json)
+        )
+
+    def _ihms_unreachable_message(self, exc: GatewayError) -> GatewayError:
+        base_url = self.settings.ihms_base_url if self.settings else "IHMS"
+        return GatewayError(
+            f"Cannot reach KB-IHMS at {base_url}. "
+            "For mock stack run: bash scripts/mock-stack.sh. "
+            "For real KB-IHMS run: bash scripts/real-upstream.sh "
+            f"(detail: {exc})"
+        )
+
+    async def _refresh_ihms_catalog(self, headers: ObservabilityHeaders) -> None:
+        if self.ihms_catalog_cache is None or self.ecops_mapping is None:
+            return
+        try:
+            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
+        except GatewayError as exc:
+            if self._fallback_enabled():
+                logger.warning(
+                    "IHMS catalog unavailable at %s; using JSON catalog fallback",
+                    self.settings.ihms_base_url if self.settings else "IHMS",
+                )
+                self.ihms_catalog_cache.load_from_json_catalog(
+                    self.json_catalog_fallback,
+                    self.ecops_mapping,
+                )
+                return
+            raise self._ihms_unreachable_message(exc) from exc
+
+    def _json_catalog_without_stock(self) -> list[CatalogProductWithAvailability]:
+        if self.json_catalog_fallback is None or self.ecops_mapping is None:
+            return []
+        return [
+            CatalogProductWithAvailability(
+                sku=product.sku,
+                name=product.name,
+                ihms_product_id=product.ihms_product_id,
+                ecops_item_code=self.ecops_mapping.ecops_item_code(product.sku),
+                unit_price=product.unit_price,
+                available_quantity=None,
+            )
+            for product in self.json_catalog_fallback.list_products()
+        ]
 
     def create_session(self, correlation_id: str) -> CheckoutSession:
         session = CheckoutSession(correlation_id=correlation_id, state=SessionState.CREATED)
@@ -78,13 +137,30 @@ class CheckoutService:
     def list_catalog(self) -> list[CatalogProduct]:
         return self.catalog.list_products()
 
+    def get_product(self, sku: str) -> CatalogProduct | None:
+        return self.catalog.get_product(sku)
+
     async def list_catalog_with_inventory(
         self,
         headers: ObservabilityHeaders,
     ) -> list[CatalogProductWithAvailability]:
         if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
-            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
-            return self.ihms_catalog_cache.list()
+            await self._refresh_ihms_catalog(headers)
+            products = self.ihms_catalog_cache.list()
+            if products:
+                return products
+            if self._fallback_enabled():
+                logger.warning("IHMS catalog empty; falling back to JSON catalog")
+                try:
+                    return await list_catalog_with_inventory(
+                        self.json_catalog_fallback,
+                        self.ihms,
+                        headers,
+                        allow_degraded=True,
+                    )
+                except GatewayError:
+                    return self._json_catalog_without_stock()
+            return products
         return await list_catalog_with_inventory(self.catalog, self.ihms, headers)
 
     async def get_product_with_inventory(
@@ -93,12 +169,20 @@ class CheckoutService:
         headers: ObservabilityHeaders,
     ) -> CatalogProductWithAvailability | None:
         if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
-            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
-            return self.ihms_catalog_cache.get(sku)
+            await self._refresh_ihms_catalog(headers)
+            product = self.ihms_catalog_cache.get(sku)
+            if product is not None:
+                return product
+            if self._fallback_enabled():
+                return await get_product_with_inventory(
+                    self.json_catalog_fallback,
+                    self.ihms,
+                    sku,
+                    headers,
+                    allow_degraded=True,
+                )
+            return None
         return await get_product_with_inventory(self.catalog, self.ihms, sku, headers)
-
-    def get_product(self, sku: str) -> CatalogProduct | None:
-        return self.catalog.get_product(sku)
 
     async def place_hold(
         self,
@@ -108,7 +192,11 @@ class CheckoutService:
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
         if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
-            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
+            await self._refresh_ihms_catalog(headers)
+            if not self.ihms_catalog_cache.list() and not self._fallback_enabled():
+                raise self._ihms_unreachable_message(
+                    GatewayError("IHMS catalog is empty and JSON fallback is disabled")
+                )
         return await self.saga.place_hold(session_id, items, customer_name, headers)
 
     async def confirm(

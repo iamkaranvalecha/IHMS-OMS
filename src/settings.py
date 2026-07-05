@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     catalog_source: Literal["json", "ihms"] = "ihms"
     catalog_path: Path = Path("catalog/products.json")
     ecops_mapping_path: Path = Path("catalog/ecops-mapping.json")
+    catalog_fallback_to_json: bool = True
 
     cors_origins: list[str] = [
         "http://localhost:5173",

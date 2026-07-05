@@ -2,7 +2,7 @@
 
 from src.catalog.ecops_mapping import EcopsMapping
 from src.catalog.inventory import CatalogProductWithAvailability
-from src.catalog.provider import CatalogProduct
+from src.catalog.provider import CatalogProduct, JsonCatalogProvider
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_client import IhmsClient
 from src.gateway.ihms_models import ProductCatalogItemResponse
@@ -32,6 +32,26 @@ class IhmsCatalogCache:
 
     def list(self) -> list[CatalogProductWithAvailability]:
         return list(self._products.values())
+
+    def load_from_json_catalog(
+        self,
+        json_catalog: JsonCatalogProvider,
+        mapping: EcopsMapping,
+    ) -> None:
+        """Populate cache from local JSON when IHMS catalog is unreachable."""
+        self._products = {
+            product.sku: _to_enriched(
+                ProductCatalogItemResponse(
+                    product_id=product.ihms_product_id,
+                    sku=product.sku,
+                    name=product.name,
+                    unit_price=product.unit_price,
+                    available_quantity=0,
+                ),
+                mapping,
+            )
+            for product in json_catalog.list_products()
+        }
 
 
 class IhmsCatalogAdapter:

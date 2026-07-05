@@ -26,12 +26,15 @@ async def lifespan(app: FastAPI):
     """Wire gateway clients, catalog, and session store."""
     settings: Settings = app.state.settings
     ecops_mapping = EcopsMapping.from_path(settings.ecops_mapping_path)
+    json_catalog = JsonCatalogProvider(settings.catalog_path)
     ihms_catalog_cache: IhmsCatalogCache | None = None
+    json_catalog_fallback: JsonCatalogProvider | None = None
     if settings.catalog_source == "ihms":
         ihms_catalog_cache = IhmsCatalogCache()
         catalog = IhmsCatalogAdapter(ihms_catalog_cache)
+        json_catalog_fallback = json_catalog
     else:
-        catalog = JsonCatalogProvider(settings.catalog_path)
+        catalog = json_catalog
     sessions = InMemorySessionStore()
 
     async with gateway_clients(settings) as (ihms, ecops):
@@ -42,6 +45,8 @@ async def lifespan(app: FastAPI):
             ecops=ecops,
             ihms_catalog_cache=ihms_catalog_cache,
             ecops_mapping=ecops_mapping,
+            json_catalog_fallback=json_catalog_fallback,
+            settings=settings,
         )
         logger.info(
             "checkout orchestrator ready: catalog_source=%s ihms_base_url=%s ecops_base_url=%s",

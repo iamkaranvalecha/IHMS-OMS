@@ -49,3 +49,19 @@ async def test_ihms_catalog_cache_refresh_maps_products() -> None:
     assert products[0].ihms_product_id == "prod-001"
     assert products[0].ecops_item_code == "MOUSE-001"
     assert products[0].available_quantity == 5
+
+
+def test_ihms_catalog_cache_load_from_json_catalog() -> None:
+    from pathlib import Path
+
+    from src.catalog.provider import JsonCatalogProvider
+
+    path = Path(__file__).resolve().parents[2] / "catalog" / "products.json"
+    json_catalog = JsonCatalogProvider(path)
+    cache = IhmsCatalogCache()
+    cache.load_from_json_catalog(json_catalog, EcopsMapping())
+
+    products = cache.list()
+    assert len(products) >= 1
+    assert products[0].sku == "WIDGET-001"
+    assert products[0].available_quantity == 0

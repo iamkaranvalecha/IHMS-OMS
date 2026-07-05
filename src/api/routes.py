@@ -40,6 +40,50 @@ async def metrics() -> PlainTextResponse:
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
+@health_router.get("/health/upstreams")
+async def upstream_health(request: Request) -> dict[str, object]:
+    """Probe configured upstream base URLs (for Docker connectivity debugging)."""
+    settings = request.app.state.settings
+    checkout: CheckoutService = request.app.state.checkout_service
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    ihms_status: dict[str, object] = {
+        "base_url": settings.ihms_base_url,
+        "ok": False,
+    }
+    ecops_status: dict[str, object] = {
+        "base_url": settings.ecops_base_url,
+        "ok": False,
+    }
+    try:
+        products = await checkout.ihms_client.get_products(headers)
+        ihms_status["ok"] = True
+        ihms_status["product_count"] = len(products)
+    except Exception as exc:
+        ihms_status["error"] = str(exc)
+
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{settings.ecops_base_url.rstrip('/')}/health")
+        ecops_status["ok"] = response.is_success
+        if not response.is_success:
+            ecops_status["error"] = f"HTTP {response.status_code}"
+    except Exception as exc:
+        ecops_status["error"] = str(exc)
+
+    return {
+        "catalog_source": settings.catalog_source,
+        "catalog_fallback_to_json": settings.catalog_fallback_to_json,
+        "ihms": ihms_status,
+        "ecops": ecops_status,
+    }
+
+
 class CatalogProductOut(BaseModel):
     sku: str
     name: str

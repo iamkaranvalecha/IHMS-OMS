@@ -115,3 +115,32 @@ async def test_create_session_generates_unique_correlation_id(client: AsyncClien
 async def test_get_session_not_found(client: AsyncClient) -> None:
     response = await client.get("/sessions/00000000-0000-0000-0000-000000000000")
     assert response.status_code == 404
+
+
+@pytest.fixture
+async def ihms_client(settings: Settings) -> AsyncIterator[AsyncClient]:
+    ihms_settings = settings.model_copy(
+        update={"catalog_source": "ihms", "catalog_fallback_to_json": True}
+    )
+    app = create_app(ihms_settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+
+
+@respx.mock
+async def test_catalog_falls_back_to_json_when_ihms_products_unavailable(
+    ihms_client: AsyncClient,
+) -> None:
+    respx.get("http://ihms.test/api/products").mock(
+        side_effect=httpx.ConnectError("All connection attempts failed")
+    )
+    respx.get("http://ihms.test/api/inventory").mock(
+        side_effect=httpx.ConnectError("All connection attempts failed")
+    )
+    response = await ihms_client.get("/catalog")
+    assert response.status_code == 200
+    products = response.json()
+    assert len(products) >= 1
+    assert products[0]["sku"] == "WIDGET-001"

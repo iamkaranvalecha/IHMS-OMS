@@ -174,7 +174,15 @@ export function App() {
       )}
 
       {catalogQuery.isLoading && <p>Loading catalog…</p>}
-      {catalogQuery.isError && <p className="error">Failed to load catalog.</p>}
+      {catalogQuery.isError && (
+        <p className="error" role="alert">
+          Failed to load catalog
+          {catalogQuery.error
+            ? `: ${isApiError(catalogQuery.error) ? catalogQuery.error.detail : catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`
+            : ""}
+          .
+        </p>
+      )}
 
       <div className="main-grid">
         <div className="stack">

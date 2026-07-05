@@ -58,6 +58,14 @@ if ! curl -fsS http://localhost:5000/api/products >/dev/null; then
   exit 1
 fi
 
+echo "==> Checking orchestrator can reach IHMS from Docker (host.docker.internal:5000)"
+if ! docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl:8.12.1 \
+  -fsS --connect-timeout 3 http://host.docker.internal:5000/api/products >/dev/null 2>&1; then
+  echo "WARN: host.docker.internal:5000 not reachable from a test container." >&2
+  echo "      On Linux ensure docker compose extra_hosts includes host.docker.internal." >&2
+  echo "      If orchestrator runs on the host (not Docker), use localhost URLs instead." >&2
+fi
+
 echo "==> Checking EC-OPS at http://localhost:8002/health"
 if ! curl -fsS http://localhost:8002/health >/dev/null 2>&1; then
   echo "WARN: EC-OPS /health not found — trying root (some builds omit /health)" >&2
