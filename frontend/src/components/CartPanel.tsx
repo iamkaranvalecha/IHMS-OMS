@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { cartHasUnknownStock, cartSubtotal, updateCartLine } from "@/cart";
+import {
+  cartSubtotal,
+  clampLineQuantity,
+  resolveDisplayLines,
+  updateCartLine,
+} from "@/cart";
 import type { CartItem } from "@/api/types";
 import { formatCurrency } from "@/api/normalize";
 
@@ -26,16 +31,25 @@ export function CartPanel({
   disabled,
 }: CartPanelProps) {
   const [quantityInputs, setQuantityInputs] = useState<Record<string, string>>({});
+  const [dirtySkus, setDirtySkus] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setQuantityInputs((current) => {
       const next = { ...current };
       for (const line of cart) {
+        if (dirtySkus.has(line.sku)) {
+          continue;
+        }
         next[line.sku] = String(line.quantity);
+      }
+      for (const sku of Object.keys(next)) {
+        if (!cart.some((line) => line.sku === sku)) {
+          delete next[sku];
+        }
       }
       return next;
     });
-  }, [cart]);
+  }, [cart, dirtySkus]);
 
   if (cart.length === 0) {
     return (
@@ -46,14 +60,21 @@ export function CartPanel({
     );
   }
 
+  const displayLines = resolveDisplayLines(cart, quantityInputs);
+
   const commitLineQuantity = (line: CartItem): CartItem => {
     const parsed = Number.parseInt(quantityInputs[line.sku] ?? String(line.quantity), 10);
     const quantity = Number.isFinite(parsed)
-      ? Math.min(Math.max(parsed, 1), line.maxQuantity)
+      ? clampLineQuantity(line, parsed)
       : line.quantity;
-    const nextLine = quantity !== line.quantity ? { ...line, quantity } : line;
+    const nextLine = updateCartLine([line], line.sku, quantity)[0];
     setQuantityInputs((current) => ({ ...current, [line.sku]: String(quantity) }));
-    if (quantity !== line.quantity) {
+    setDirtySkus((current) => {
+      const next = new Set(current);
+      next.delete(line.sku);
+      return next;
+    });
+    if (quantity !== line.quantity || nextLine.maxQuantity !== line.maxQuantity) {
       onCartChange(updateCartLine(cart, line.sku, quantity));
     }
     return nextLine;
@@ -65,28 +86,27 @@ export function CartPanel({
     for (const line of cart) {
       const parsed = Number.parseInt(quantityInputs[line.sku] ?? String(line.quantity), 10);
       const quantity = Number.isFinite(parsed)
-        ? Math.min(Math.max(parsed, 1), line.maxQuantity)
+        ? clampLineQuantity(line, parsed)
         : line.quantity;
-      const nextLine = { ...line, quantity };
+      const nextLine = updateCartLine([line], line.sku, quantity)[0];
       committed.push(nextLine);
-      if (quantity !== line.quantity) {
+      if (quantity !== line.quantity || nextLine.maxQuantity !== line.maxQuantity) {
         nextCart = updateCartLine(nextCart, line.sku, quantity);
       }
       setQuantityInputs((current) => ({ ...current, [line.sku]: String(quantity) }));
     }
+    setDirtySkus(new Set());
     if (nextCart !== cart) {
       onCartChange(nextCart);
     }
     return committed;
   };
 
-  const stockUnknown = cartHasUnknownStock(cart);
-
   return (
     <section className="panel">
       <h2>Cart</h2>
       <ul className="cart-lines">
-        {cart.map((line) => (
+        {displayLines.map((line) => (
           <li key={line.sku} className="cart-line">
             <div className="cart-line-header">
               <span>
@@ -99,25 +119,28 @@ export function CartPanel({
               <input
                 type="number"
                 min={1}
-                max={line.maxQuantity}
+                max={line.stockUnknown ? undefined : line.maxQuantity}
                 value={quantityInputs[line.sku] ?? String(line.quantity)}
                 disabled={disabled}
                 aria-label={`Quantity for ${line.name}`}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setDirtySkus((current) => new Set(current).add(line.sku));
                   setQuantityInputs((current) => ({
                     ...current,
                     [line.sku]: event.target.value,
-                  }))
-                }
+                  }));
+                }}
                 onBlur={() => {
-                  commitLineQuantity(line);
+                  commitLineQuantity(cart.find((entry) => entry.sku === line.sku) ?? line);
                 }}
               />
             </label>
             <p className="muted">
               {line.stockUnknown
                 ? "Stock level unknown — hold may fail if insufficient"
-                : `Up to ${line.maxQuantity} available`}
+                : line.maxQuantity === 0
+                  ? "Out of stock"
+                  : `Up to ${line.maxQuantity} available`}
             </p>
             <button
               type="button"
@@ -131,7 +154,7 @@ export function CartPanel({
         ))}
       </ul>
       <p className="cart-subtotal">
-        Subtotal: <strong>{formatCurrency(cartSubtotal(cart))}</strong>
+        Subtotal: <strong>{formatCurrency(cartSubtotal(displayLines))}</strong>
       </p>
       <label className="field">
         <span>Customer name</span>
@@ -146,7 +169,13 @@ export function CartPanel({
       <button
         type="button"
         className="primary"
-        disabled={disabled || checkoutPending || !customerName.trim() || stockUnknown}
+        disabled={
+          disabled ||
+          checkoutPending ||
+          !customerName.trim() ||
+          displayLines.length === 0 ||
+          displayLines.some((line) => !line.stockUnknown && line.maxQuantity === 0)
+        }
         onClick={() => {
           onCheckout(commitAllLines());
         }}
