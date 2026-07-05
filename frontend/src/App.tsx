@@ -126,13 +126,13 @@ export function App() {
     });
   }, [products, cart?.sku]);
 
-  const handleStartCheckout = async () => {
-    if (!cart) {
-      return;
-    }
+  const handleStartCheckout = async (checkoutCart: CartItem) => {
     setError(null);
     try {
-      const result = await startCheckout.mutateAsync({ cart, customerName: customerName.trim() });
+      const result = await startCheckout.mutateAsync({
+        cart: checkoutCart,
+        customerName: customerName.trim(),
+      });
       const confirmIdempotencyKey = newIdempotencyKey();
       confirmIdempotencyKeyRef.current = confirmIdempotencyKey;
       writeStoredActiveCheckout(result.data.sessionId, confirmIdempotencyKey);
@@ -208,7 +208,7 @@ export function App() {
             onCustomerNameChange={setCustomerName}
             onCartChange={setCart}
             onRemove={() => setCart(null)}
-            onCheckout={() => void handleStartCheckout()}
+            onCheckout={(checkoutCart) => void handleStartCheckout(checkoutCart)}
             checkoutPending={startCheckout.isPending}
             disabled={checkoutActive}
           />
