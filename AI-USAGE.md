@@ -39,8 +39,29 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
 | 2026-07-05 | Bug-finding automation — E2E port defaults | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -v --tb=short` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Bug-finding automation — degraded inventory checkout | passed | `cd frontend && npm test && npm run build` (12 Vitest tests + production build); `bash scripts/verify.sh` (45 unit, 10 contract, 7 component, 23 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Degraded inventory checkout bug fix
+
+**User query:** Deep bug-finding automation for PR #31; fix only critical correctness bugs.
+
+**Bug and impact:**
+- PR #31 made `/catalog` degrade to `available_quantity: null` when IHMS inventory lookup fails, while backend hold placement can still call IHMS and either succeed or return a stock conflict.
+- The React catalog and cart treated that unknown stock as unselectable: "Add to cart" and "Place hold & checkout" were disabled, and unknown-stock quantities would clamp to zero if enabled.
+- During an IHMS inventory-read outage with hold creation still healthy, users could not start any checkout from the UI.
+
+**Actions:**
+- Allowed unknown-stock catalog rows to be added with a positive quantity.
+- Let the cart submit unknown-stock items without applying a zero/known-stock max clamp; known zero stock remains disabled.
+- Added Vitest coverage for adding unknown-stock products and checking out with an adjusted unknown-stock quantity.
+
+**Verification:**
+- Initial `cd frontend && npm test && npm run build` failed because `vitest` was not installed in the runner; ran `npm ci` from the existing lockfile.
+- `cd frontend && npm test && npm run build` -> passed (12 Vitest tests; production build).
+- Initial `bash scripts/verify.sh` failed because Python dev tooling was absent; ran `python3 -m pip install -e ".[dev]"`.
+- `bash scripts/verify.sh` -> passed (45 unit, 10 contract, 7 component, 23 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — E2E stack port default bug fix
 
