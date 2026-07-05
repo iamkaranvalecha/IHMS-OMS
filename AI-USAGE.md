@@ -19,6 +19,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | Date | Agent / session | verify.sh | Notes |
 |------|-----------------|-----------|-------|
+| 2026-07-05 | Bug-finding automation — hold fulfill finalization | passed | `python3 -m pytest tests/unit/test_saga_coordinator.py::test_confirm_fulfill_failure_defers_terminal_state_for_retry -q` (1 passed); `bash scripts/verify.sh` (40 unit, 10 contract, 7 component, 21 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 2 gateway | passed | 18 tests (5 unit, 5 contract, 4 component, 4 integration) |
 | 2026-07-04 | Cloud Agent — Phase 3 saga | passed | 39 tests (15 unit, 6 contract, 7 component, 11 integration) |
 | 2026-07-04 | Bug-finding automation — EC-OPS timeout reconciliation | passed | 42 tests (16 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
@@ -41,6 +42,24 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — E2E port defaults | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -v --tb=short` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Hold fulfill finalization bug fix
+
+**User query:** Deep bug-finding automation for PR #31; fix only critical correctness bugs.
+
+**Bug and impact:**
+- PR #31 added IHMS hold fulfillment after EC-OPS order creation, but `SagaCoordinator.confirm` ignored `fulfill_hold_safe(...)` returning `False`.
+- A transient or 5xx IHMS fulfill failure could therefore return a confirmed checkout with an EC-OPS order while the IHMS hold stayed active and later restorable, risking order/inventory divergence.
+
+**Actions:**
+- Require hold fulfillment to succeed before the session becomes `CONFIRMED` or `RECONCILED`.
+- If fulfillment fails after an order exists, keep the session `HELD`, retain the original confirm idempotency key, and return a retryable 503.
+- Same-key retry reconciles the existing EC-OPS order before attempting fulfillment again, avoiding duplicate orders.
+- Updated the failure matrix and checkout sequence docs for the new finalization failure branch.
+
+**Verification:**
+- `python3 -m pytest tests/unit/test_saga_coordinator.py::test_confirm_fulfill_failure_defers_terminal_state_for_retry -q` -> 1 passed.
+- `bash scripts/verify.sh` -> passed (40 unit, 10 contract, 7 component, 21 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — E2E stack port default bug fix
 
@@ -371,3 +390,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Deep bug-finding automation on PR #21 — upstream stack volume deletion |
 | 2026-07-05 | Deep bug-finding automation on PR #25 — real-upstream env example |
 | 2026-07-05 | Deep bug-finding automation on PR #28 — E2E stack port defaults |
+| 2026-07-05 | Deep bug-finding automation on PR #31 — hold fulfill finalization |
