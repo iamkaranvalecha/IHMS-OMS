@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "ecops-token.sh"
 ENV_FILE = ROOT / ".env"
+ENV_EXAMPLE = ROOT / ".env.example"
 
 
 @pytest.fixture
@@ -64,6 +65,16 @@ printf '{"access_token":"test-token"}'
         text=True,
     )
     return result, curl_log.read_text(encoding="utf-8") if curl_log.exists() else ""
+
+
+def test_env_example_configures_real_upstream_compose_path() -> None:
+    """The documented real-upstream flow copies this file directly to .env."""
+    lines = ENV_EXAMPLE.read_text(encoding="utf-8").splitlines()
+
+    assert "IHMS_BASE_URL=http://host.docker.internal:5000" in lines
+    assert "ECOPS_BASE_URL=http://host.docker.internal:8002" in lines
+    assert "ECOPS_BEARER_TOKEN=" in lines
+    assert "UI_PORT=5180" in lines
 
 
 def test_ecops_token_uses_localhost_for_host_docker_internal_env(
