@@ -18,7 +18,7 @@ docker compose up --build
 
 | Service | URL |
 |---------|-----|
-| Checkout UI | http://localhost:5173 |
+| Checkout UI | http://localhost:5180 |
 | Orchestrator | http://localhost:8000 |
 | Swagger / metrics | http://localhost:8000/docs · http://localhost:8000/metrics |
 

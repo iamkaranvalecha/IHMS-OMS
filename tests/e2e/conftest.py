@@ -18,7 +18,7 @@ IHMS_ADMIN_URL = os.environ.get(
 )
 ECOPS_ADMIN_URL = os.environ.get(
     "E2E_ECOPS_ADMIN_URL",
-    f"http://localhost:{os.environ.get('ECOPS_PORT', '8002')}",
+    f"http://localhost:{os.environ.get('ECOPS_PORT', '8012')}",
 )
 
 

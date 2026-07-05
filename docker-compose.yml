@@ -2,15 +2,14 @@
 #
 # Quick start:
 #   docker compose up --build
+#   Checkout UI: http://localhost:5180  (5180 avoids KB-IHMS frontend on 5173)
 #
 # With Prometheus:
 #   docker compose --profile obs up --build
 #
-# Real upstreams (KB-IHMS docker on :5000, EC-OPS on :8002) — start those first, then:
-#   IHMS_BASE_URL=http://host.docker.internal:5000 \
-#   ECOPS_BASE_URL=http://host.docker.internal:8002 \
-#   ECOPS_BEARER_TOKEN=<jwt> \
-#   docker compose up orchestrator ui --build
+# Real upstreams already running (KB-IHMS :5000, EC-OPS :8002):
+#   cp .env.example .env && bash scripts/ecops-token.sh
+#   docker compose up orchestrator ui --no-deps --build
 
 x-orchestrator-env: &orchestrator-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -46,7 +45,7 @@ services:
       dockerfile: Dockerfile
     image: ${ECOPS_IMAGE:-ihms-oms-mock-ecops:local}
     ports:
-      - "${ECOPS_PORT:-8002}:8002"
+      - "${ECOPS_PORT:-8012}:8002"
     networks:
       - checkout-net
     healthcheck:
@@ -91,7 +90,7 @@ services:
       context: frontend
       dockerfile: Dockerfile
     ports:
-      - "${UI_PORT:-5173}:5173"
+      - "${UI_PORT:-5180}:5173"
     environment:
       VITE_API_URL: ""
     depends_on:

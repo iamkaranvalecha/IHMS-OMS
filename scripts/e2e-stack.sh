@@ -12,8 +12,8 @@ fi
 
 ORCHESTRATOR_URL="${E2E_ORCHESTRATOR_URL:-http://localhost:${ORCHESTRATOR_PORT:-8000}}"
 IHMS_URL="${E2E_IHMS_ADMIN_URL:-http://localhost:${IHMS_PORT:-8080}}"
-ECOPS_URL="${E2E_ECOPS_ADMIN_URL:-http://localhost:${ECOPS_PORT:-8002}}"
-UI_URL="${E2E_UI_URL:-http://localhost:${UI_PORT:-5173}}"
+ECOPS_URL="${E2E_ECOPS_ADMIN_URL:-http://localhost:${ECOPS_PORT:-8012}}"
+UI_URL="${E2E_UI_URL:-http://localhost:${UI_PORT:-5180}}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:${PROMETHEUS_PORT:-9090}}"
 
 wait_for_url() {
