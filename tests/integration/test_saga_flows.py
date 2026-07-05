@@ -128,7 +128,7 @@ async def test_confirm_compensates_when_order_fails(client: AsyncClient) -> None
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
-    assert hold_resp.status_code == 200
+    assert hold_resp.status_code == 200, hold_resp.text
     assert hold_resp.json()["state"] == "HELD"
 
     respx.get("http://ihms.test/api/holds/hold-fail").mock(
@@ -301,7 +301,7 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
-    assert hold_resp.status_code == 200
+    assert hold_resp.status_code == 200, hold_resp.text
     assert hold_resp.json()["state"] == "HELD"
 
     respx.post("http://ecops.test/orders").mock(side_effect=httpx.TimeoutException("timeout"))
