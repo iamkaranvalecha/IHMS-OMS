@@ -124,10 +124,12 @@ async def test_confirm_compensates_when_order_fails(client: AsyncClient) -> None
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold_response("hold-fail"))
     )
-    await client.post(
+    hold_resp = await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
+    assert hold_resp.status_code == 200
+    assert hold_resp.json()["state"] == "HELD"
 
     respx.get("http://ihms.test/api/holds/hold-fail").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-fail"))
@@ -315,7 +317,7 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
         headers={"Idempotency-Key": "idem-reconcile-error"},
     )
 
-    assert confirm.status_code == 503
+    assert confirm.status_code == 503, confirm.json()
     assert not release.called
     get_resp = await client.get(f"/sessions/{session_id}")
     body = get_resp.json()
