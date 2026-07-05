@@ -29,7 +29,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Cloud Agent — Phase 5 full stack E2E | passed | backend verify.sh 47 tests; `STACK=1` runs 7 e2e against mock upstream compose stack |
 | 2026-07-05 | Consolidated PR #15 | passed | Supersedes #13 (frontend idempotency) + #16 (upstream rules); e2e reconcile fix |
 | 2026-07-05 | Bug-finding automation — reconciliation/correlation fixes | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 15 integration); e2e skipped unless `STACK=1` |
-| 2026-07-05 | Bug-finding automation — unknown order retry guard | pending | Validation to be run after required pre-test commit/push |
+| 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
 
@@ -52,7 +52,8 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - Updated reconciliation docs and added an integration regression for retry-after-lookup-failure without duplicate EC-OPS POSTs.
 
 **Verification:**
-- Pending; commands will run after the required pre-test commit/push.
+- `python3 -m pytest tests/integration/test_saga_flows.py::test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_order -q` → passed.
+- `bash scripts/verify.sh` → passed (20 unit, 7 contract, 7 component, 16 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — Reconciliation and correlation bug fixes
 
