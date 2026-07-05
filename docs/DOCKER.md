@@ -33,4 +33,7 @@ bash scripts/ecops-token.sh
 docker compose up orchestrator ui --no-deps --build
 ```
 
+With the example env, the checkout UI is exposed at http://localhost:5180 to avoid
+KB-IHMS' frontend on http://localhost:5173.
+
 `ecops-token.sh` maps `host.docker.internal` to `localhost` when fetching the JWT from your host.
