@@ -1,19 +1,21 @@
-# Full demo / E2E stack — mock upstreams + orchestrator + UI (Phase 5+).
-# Usage: docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+# IHMS-OMS — full checkout stack (like KB-IHMS: docker compose up --build)
 #
-# With Prometheus metrics scraper (Phase 6):
-#   docker compose -f docker/compose.base.yml -f docker/compose.full.yml \
-#     -f docker/compose.observability.yml --profile obs up --build
+# Quick start:
+#   docker compose up --build
 #
-# Optional real upstream images:
-#   IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:latest \
-#   ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:latest \
-#   docker compose -f docker/compose.base.yml -f docker/compose.full.yml up
+# With Prometheus:
+#   docker compose --profile obs up --build
+#
+# Real upstreams (KB-IHMS docker on :5000, EC-OPS on :8002) — start those first, then:
+#   IHMS_BASE_URL=http://host.docker.internal:5000 \
+#   ECOPS_BASE_URL=http://host.docker.internal:8002 \
+#   ECOPS_BEARER_TOKEN=<jwt> \
+#   docker compose up orchestrator ui --build
 
 x-orchestrator-env: &orchestrator-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   LOG_JSON: ${LOG_JSON:-true}
-  CATALOG_PATH: ${CATALOG_PATH:-/app/catalog/products.json}
+  CATALOG_PATH: /app/catalog/products.json
 
 x-orchestrator-logging: &orchestrator-logging
   driver: json-file
@@ -24,7 +26,7 @@ x-orchestrator-logging: &orchestrator-logging
 services:
   ihms:
     build:
-      context: mock-upstreams/ihms
+      context: docker/mock-upstreams/ihms
       dockerfile: Dockerfile
     image: ${IHMS_IMAGE:-ihms-oms-mock-ihms:local}
     ports:
@@ -40,7 +42,7 @@ services:
 
   ecops:
     build:
-      context: mock-upstreams/ecops
+      context: docker/mock-upstreams/ecops
       dockerfile: Dockerfile
     image: ${ECOPS_IMAGE:-ihms-oms-mock-ecops:local}
     ports:
@@ -56,15 +58,17 @@ services:
 
   orchestrator:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile.orchestrator
     ports:
       - "${ORCHESTRATOR_PORT:-8000}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       <<: *orchestrator-env
-      IHMS_BASE_URL: http://ihms:8080
-      ECOPS_BASE_URL: http://ecops:8002
-      CATALOG_PATH: /app/catalog/products.json
+      IHMS_BASE_URL: ${IHMS_BASE_URL:-http://ihms:8080}
+      ECOPS_BASE_URL: ${ECOPS_BASE_URL:-http://ecops:8002}
+      ECOPS_BEARER_TOKEN: ${ECOPS_BEARER_TOKEN:-}
       ECOPS_READ_TIMEOUT: ${ECOPS_READ_TIMEOUT:-2}
       IHMS_READ_TIMEOUT: ${IHMS_READ_TIMEOUT:-5}
     logging: *orchestrator-logging
@@ -84,12 +88,11 @@ services:
 
   ui:
     build:
-      context: ../frontend
+      context: frontend
       dockerfile: Dockerfile
     ports:
       - "${UI_PORT:-5173}:5173"
     environment:
-      # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
       VITE_API_URL: ""
     depends_on:
       orchestrator:
@@ -102,3 +105,34 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["obs"]
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    depends_on:
+      orchestrator:
+        condition: service_healthy
+    networks:
+      - checkout-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+networks:
+  checkout-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:

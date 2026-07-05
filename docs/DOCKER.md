@@ -1,61 +1,36 @@
 # Docker
 
-Three compose stacks — one per purpose:
-
-| Stack | Files | Command |
-|-------|-------|---------|
-| **Deploy** (real upstreams) | `compose.base.yml` + `compose.dev.yml` | `bash scripts/deploy-stack.sh up` |
-| **Mock E2E** (CI) | `compose.base.yml` + `compose.full.yml` | `bash scripts/e2e-stack.sh up` |
-| **Observability** | + `compose.observability.yml --profile obs` | `OBS_STACK=1 bash scripts/obs-stack.sh up` |
-
-## Deploy against sibling repos
-
-KB-IHMS ships `docker-compose.yml` (API **:5000**, frontend **:5173**). EC-OPS has **no** docker-compose — run it on the host at **:8002** with PostgreSQL (see [EC-OPS README](https://github.com/iamkaranvalecha/EC-OPS)).
+One file, same pattern as [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS):
 
 ```bash
-# 1. KB-IHMS (from ../KB-IHMS)
-docker compose up -d --build
-
-# 2. EC-OPS (from ../EC-OPS) — local process or your deployment
-uv run python scripts/setup.py && uv run python -m src.main
-
-# 3. IHMS-OMS
-cp .env.example .env
-bash scripts/ecops-token.sh
-bash scripts/deploy-stack.sh up
+docker compose up --build
 ```
 
 | Service | URL |
 |---------|-----|
-| Checkout UI | http://localhost:5180 |
+| Checkout UI | http://localhost:5173 |
 | Orchestrator | http://localhost:8000 |
-| KB-IHMS API | http://localhost:5000 |
-| EC-OPS API | http://localhost:8002 |
+| Mock IHMS | http://localhost:8080 |
+| Mock EC-OPS | http://localhost:8002 |
 
-Orchestrator reaches host upstreams via `host.docker.internal`.
+Stop: `docker compose down` (add `-v` to remove volumes)
 
-### EC-OPS JWT
+Prometheus: `docker compose --profile obs up --build` → http://localhost:9090
 
-```bash
-bash scripts/ecops-token.sh
-bash scripts/deploy-stack.sh up   # reads ECOPS_BEARER_TOKEN from .env
-```
+E2E tests: `STACK=1 bash scripts/verify.sh` (uses `scripts/e2e-stack.sh` internally)
 
-`bash scripts/deploy-stack.sh down` preserves compose volumes by default. Pass `--volumes` to remove them.
+## Real KB-IHMS + EC-OPS (optional)
 
-## Mock stack (CI)
-
-Unchanged — wire-compatible mocks, no external repos:
+Start upstreams from their repos first, then run orchestrator + UI only:
 
 ```bash
-bash scripts/e2e-stack.sh up
-STACK=1 bash scripts/verify.sh
+# KB-IHMS: cd ../KB-IHMS && docker compose up -d
+# EC-OPS:  cd ../EC-OPS && uv run python -m src.main
+
+cp .env.example .env
+# Edit .env — set IHMS_BASE_URL, ECOPS_BASE_URL, ECOPS_BEARER_TOKEN
+
+docker compose up orchestrator ui --no-deps --build
 ```
 
-## Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| Hold fails | KB-IHMS up? `curl http://localhost:5000/health` |
-| Confirm 401 | `ECOPS_BEARER_TOKEN` expired — re-run `ecops-token.sh` |
-| Port clash on UI | KB-IHMS uses 5173; checkout UI uses **5180** |
+Get EC-OPS JWT: `curl -X POST http://localhost:8002/auth/token -d "username=USER&password=PASS"`

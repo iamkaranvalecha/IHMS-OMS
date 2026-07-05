@@ -14,8 +14,7 @@ bash scripts/verify.sh           # full gate (ruff + all test tiers)
 pytest tests/unit -v             # unit only
 STACK=1 bash scripts/verify.sh   # include e2e
 
-docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
-docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+docker compose up --build
 ```
 
 ## Read order

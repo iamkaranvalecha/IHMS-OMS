@@ -96,7 +96,7 @@ http/
 
 ```
    real upstream smoke   ← Lane 2: pinned IHMS/EC-OPS images or staging (drift detection)
-        e2e              ← Lane 1b: compose.full.yml + mock upstreams (STACK=1)
+        e2e              ← Lane 1b: docker-compose.yml + mock upstreams (STACK=1)
      integration         ← full FastAPI app, mocked gateway
      component           ← saga + session + catalog wired, gateway mocked
      contract            ← IHMS/EC-OPS wire format assertions (living spec)
