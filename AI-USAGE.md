@@ -33,8 +33,20 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — Phase 6 observability | passed | verify.sh 26 unit + 20 integration; JSON logs, /metrics, saga step logging |
+| 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; Lane 2 compose + upstream-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
 
 ## Session log
+
+### 2026-07-05 — Real upstream Docker deployment (v0.7.0)
+
+**User query:** Add Docker implementation; KB-IHMS and EC-OPS already deployed in Docker.
+
+**Actions:**
+- `docker/compose.upstream.yml` — orchestrator + UI wired to host upstreams via `host.docker.internal`
+- `docker/compose.bundle.yml` — bundled KB-IHMS + EC-OPS + orchestrator on shared network
+- `docker/upstream/ecops/Dockerfile` — build EC-OPS from sibling path without modifying assignment repo
+- `scripts/upstream-stack.sh`, `scripts/ecops-token.sh`, `.env.example`, `docs/DOCKER.md`
+- EC-OPS JWT via `ECOPS_BEARER_TOKEN`; checkout UI on port 5180 (avoids KB-IHMS frontend 5173)
 
 ### 2026-07-05 — Phase 6 observability + testing (v0.6.0)
 

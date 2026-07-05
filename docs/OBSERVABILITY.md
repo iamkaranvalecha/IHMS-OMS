@@ -58,8 +58,10 @@ Compose files:
 
 | File | Purpose |
 |------|---------|
-| `docker/compose.base.yml` | Shared env anchors (`LOG_LEVEL`, `LOG_JSON`) |
-| `docker/compose.full.yml` | Full stack with JSON logging driver |
+| `docker/compose.base.yml` | Shared networks/volumes |
+| `docker/compose.full.yml` | Mock upstreams + full stack (CI Lane 1b) |
+| `docker/compose.upstream.yml` | Real upstreams on host (Lane 2 external) |
+| `docker/compose.bundle.yml` | Bundled KB-IHMS + EC-OPS siblings |
 | `docker/compose.observability.yml` | Prometheus (`--profile obs`) |
 | `docker/prometheus/prometheus.yml` | Scrape target `orchestrator:8000/metrics` |
 

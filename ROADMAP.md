@@ -6,9 +6,9 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ---
 
-## Current phase: Complete — Phase 6 gate passed (2026-07-05)
+## Current phase: Phase 7 — Real upstream Docker (2026-07-05)
 
-**Goal achieved:** JSON structured logs, saga step logging, `/metrics` counters, observability tests.
+**Goal:** Docker deployment wired to live KB-IHMS + EC-OPS (external + bundled compose, Lane 2 scripts).
 
 ---
 
@@ -34,6 +34,14 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 - [x] Unit + integration observability tests
 - [x] OBSERVABILITY.md updated; version 0.6.0
 
+### Phase 7 deliverables
+
+- [x] `docker/compose.upstream.yml` — orchestrator + UI → host upstreams
+- [x] `docker/compose.bundle.yml` — KB-IHMS + EC-OPS + orchestrator bundle
+- [x] `docker/upstream/ecops/Dockerfile` — build EC-OPS from sibling path
+- [x] `scripts/upstream-stack.sh`, `scripts/ecops-token.sh`
+- [x] `.env.example`, `docs/DOCKER.md`; version 0.7.0
+
 ---
 
 ## Next
@@ -41,6 +49,5 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 Future work (post v1 integration):
 
 - OpenTelemetry SDK + OTLP export
-- Real upstream smoke job (Lane 2)
+- Scheduled Lane 2 real-upstream smoke CI job
 - Persistent session store (Redis)
-- Swap mock upstreams for published images in demo environments

@@ -26,7 +26,7 @@ cd frontend && cp .env.example .env && npm install && npm run dev   # terminal 2
 
 Open http://localhost:5173
 
-### Full stack (E2E demo)
+### Full stack (E2E demo — mock upstreams, CI default)
 
 ```bash
 bash scripts/e2e-stack.sh up
@@ -36,6 +36,19 @@ STACK=1 bash scripts/verify.sh        # runs unit + integration + e2e
 bash scripts/e2e-stack.sh down
 ```
 
+### Real upstreams (KB-IHMS + EC-OPS already in Docker)
+
+When the other two repos are deployed on the host:
+
+```bash
+cp .env.example .env
+bash scripts/ecops-token.sh           # EC-OPS JWT → .env
+bash scripts/upstream-stack.sh up     # UI http://localhost:5180
+bash scripts/upstream-stack.sh down
+```
+
+Bundled sibling build (all three repos on one machine): see [docs/DOCKER.md](docs/DOCKER.md).
+
 **Observability stack** (Prometheus scrapes `/metrics`):
 
 ```bash
@@ -44,13 +57,7 @@ bash scripts/obs-stack.sh up
 bash scripts/obs-stack.sh down
 ```
 
-The full stack uses **wire-compatible mock upstreams** (`docker/mock-upstreams/`) so CI and local demos do not depend on external image registries. Optional real images:
-
-```bash
-IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:latest \
-ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:latest \
-docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
-```
+The full stack uses **wire-compatible mock upstreams** (`docker/mock-upstreams/`) so CI and local demos do not depend on external image registries. For real KB-IHMS + EC-OPS deployments use `bash scripts/upstream-stack.sh up` — see [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Architecture snapshot
 
@@ -85,6 +92,7 @@ Key API routes:
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module layout and boundaries |
 | [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) | Failure matrix |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Request / Correlation / Trace IDs |
+| [docs/DOCKER.md](docs/DOCKER.md) | Real upstream + bundled Docker deployment |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Timeouts, retries, pooling |
 | [docs/sequences/](docs/sequences/) | Per-flow sequence diagrams |
 | [docs/adr/](docs/adr/) | Architectural decision records |
@@ -92,19 +100,15 @@ Key API routes:
 
 ## Docker
 
-```bash
-# Orchestrator only (lightweight dev)
-docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+| Stack | Command |
+|-------|---------|
+| Orchestrator only (dev) | `docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up` |
+| Mock E2E (CI) | `bash scripts/e2e-stack.sh up` |
+| **Real upstreams (deployed)** | `bash scripts/upstream-stack.sh up` |
+| Bundled siblings | `bash scripts/upstream-stack.sh up --bundle` |
+| Mock + Prometheus | `bash scripts/obs-stack.sh up` |
 
-# Full stack demo + E2E
-docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
-
-# Full stack + Prometheus (Phase 6 observability)
-docker compose -f docker/compose.base.yml -f docker/compose.full.yml \
-  -f docker/compose.observability.yml --profile obs up --build
-```
-
-Orchestrator containers default to `LOG_JSON=true` (structured JSON on stdout). UI nginx proxies `/health` and `/metrics`.
+Full guide: [docs/DOCKER.md](docs/DOCKER.md). Orchestrator containers default to `LOG_JSON=true`. UI nginx proxies `/health` and `/metrics`.
 
 ## Project tracking
 
@@ -113,4 +117,4 @@ Orchestrator containers default to `LOG_JSON=true` (structured JSON on stdout). 
 
 ## Status
 
-**Phase 5 complete (v0.5.0)** — full-stack E2E with mock upstreams, React UI, and saga orchestration. See [ROADMAP.md](ROADMAP.md) for history.
+**Phase 6 complete (v0.6.0)** — observability + mock E2E. **Phase 7** adds real upstream Docker (`scripts/upstream-stack.sh`). See [ROADMAP.md](ROADMAP.md).
