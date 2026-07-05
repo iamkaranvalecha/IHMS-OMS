@@ -144,3 +144,24 @@ async def test_catalog_falls_back_to_json_when_ihms_products_unavailable(
     products = response.json()
     assert len(products) >= 1
     assert products[0]["sku"] == "WIDGET-001"
+
+
+@respx.mock
+async def test_catalog_returns_502_when_ihms_unavailable_and_fallback_disabled() -> None:
+    ihms_settings = Settings(
+        ihms_base_url="http://ihms.test",
+        ecops_base_url="http://ecops.test",
+        ecops_bearer_token="test-token",
+        catalog_source="ihms",
+        catalog_fallback_to_json=False,
+    )
+    app = create_app(ihms_settings)
+    async with app.router.lifespan_context(app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            respx.get("http://ihms.test/api/products").mock(
+                side_effect=httpx.ConnectError("All connection attempts failed")
+            )
+            response = await client.get("/catalog")
+    assert response.status_code == 502
+    assert "Cannot reach KB-IHMS" in response.json()["detail"]

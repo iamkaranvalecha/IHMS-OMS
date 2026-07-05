@@ -41,7 +41,7 @@ _ensure_env_var() {
 
 echo "==> Configuring .env for mock Docker stack"
 _ensure_env_var CATALOG_SOURCE ihms
-_ensure_env_var CATALOG_FALLBACK_TO_JSON true
+_ensure_env_var CATALOG_FALLBACK_TO_JSON false
 _ensure_env_var IHMS_BASE_URL http://ihms:8080
 _ensure_env_var ECOPS_BASE_URL http://ecops:8002
 _ensure_env_var ECOPS_BEARER_TOKEN ""

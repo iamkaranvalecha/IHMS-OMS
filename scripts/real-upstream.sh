@@ -46,6 +46,7 @@ if [[ ! -f .env ]]; then
 fi
 
 _ensure_env_var CATALOG_SOURCE ihms
+_ensure_env_var CATALOG_FALLBACK_TO_JSON false
 _ensure_env_var IHMS_BASE_URL http://host.docker.internal:5000
 _ensure_env_var ECOPS_BASE_URL http://host.docker.internal:8002
 _ensure_env_var ORCHESTRATOR_PORT 8000
