@@ -19,9 +19,10 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
       <ul className="catalog-grid">
         {products.map((product) => {
           const inCart = cart?.sku === product.sku;
-          const stockUnknown = product.availableQuantity === null;
-          const outOfStock = !stockUnknown && product.availableQuantity <= 0;
-          const maxQty = stockUnknown ? 0 : Math.max(product.availableQuantity, 0);
+          const availableQuantity = product.availableQuantity;
+          const stockUnknown = availableQuantity === null;
+          const outOfStock = availableQuantity !== null && availableQuantity <= 0;
+          const maxQty = availableQuantity === null ? 0 : Math.max(availableQuantity, 0);
           const selectedQty = quantities[product.sku] ?? 1;
           return (
             <li key={product.sku} className="catalog-card">

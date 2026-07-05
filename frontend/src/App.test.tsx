@@ -13,7 +13,7 @@ vi.mock("@/api/hooks", () => ({
 }));
 
 vi.mock("@/components/CatalogGrid", () => ({
-  CatalogGrid: ({ onAdd }: { onAdd: (item: CatalogProduct & { quantity: number; maxQuantity: number }) => void }) => (
+  CatalogGrid: ({ onAdd }: { onAdd: (item: CartItem) => void }) => (
     <button
       type="button"
       onClick={() =>
