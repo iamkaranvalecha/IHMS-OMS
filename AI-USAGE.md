@@ -33,7 +33,9 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 | 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — Phase 6 observability | passed | verify.sh 26 unit + 20 integration; JSON logs, /metrics, saga step logging |
-| 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; Lane 2 compose + upstream-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
+| 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; deploy-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
+| 2026-07-05 | Bug-finding automation — upstream stack data preservation | passed | `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Cloud Agent — simplified Docker merge | passed | verify.sh 29 unit; deploy-stack volume-safe down retained from PR #22 |
 
 ## Session log
 
@@ -48,9 +50,25 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 **Actions:**
 - Removed duplicate `compose.upstream.yml`, `compose.bundle.yml`, custom EC-OPS Dockerfile
 - Single deploy stack: `compose.dev.yml` + `scripts/deploy-stack.sh`
+- Ported volume-safe `down` from PR #22 (`--volumes` opt-in)
 - Docs trimmed to three-repo workflow (use upstream docker as-is)
 
-### 2026-07-05 — Real upstream Docker deployment (v0.7.0)
+### 2026-07-05 — Upstream stack data preservation bug fix (PR #22, refactored)
+
+**User query:** Deep bug-finding automation for PR #21; fix only critical correctness bugs.
+
+**Bug and impact:**
+- `scripts/upstream-stack.sh down` always ran `docker compose down -v`. In bundled mode, that deleted KB-IHMS MongoDB and EC-OPS Postgres volumes.
+- Bundle flag parsing and EC-OPS Dockerfile path issues blocked the bundled stack.
+
+**Actions (merged to main, then superseded by simplification):**
+- Volume preservation and `--volumes` opt-in retained in `scripts/deploy-stack.sh`
+- Bundled stack removed — use KB-IHMS `docker-compose.yml` directly instead
+
+**Verification:**
+- `python3 -m pytest tests/unit/test_deploy_stack_script.py -q` → 3 passed
+
+### 2026-07-05 — Phase 6 observability + testing (v0.6.0)
 
 **User query:** Add observability and testing to roadmap and implement.
 
@@ -296,3 +314,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Deep bug-finding automation on PR #6 — order timeout cleanup |
 | 2026-07-04 | Deep bug-finding automation on PR #11 — frontend container API proxy |
 | 2026-07-05 | Deep bug-finding automation on PR #15 — reconciliation lookup failure and correlation collision |
+| 2026-07-05 | Deep bug-finding automation on PR #21 — upstream stack volume deletion |

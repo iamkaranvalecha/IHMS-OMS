@@ -41,6 +41,8 @@ bash scripts/ecops-token.sh
 bash scripts/deploy-stack.sh up   # reads ECOPS_BEARER_TOKEN from .env
 ```
 
+`bash scripts/deploy-stack.sh down` preserves compose volumes by default. Pass `--volumes` to remove them.
+
 ## Mock stack (CI)
 
 Unchanged — wire-compatible mocks, no external repos:

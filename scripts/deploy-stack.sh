@@ -17,6 +17,21 @@ if [[ -f .env ]]; then
   set +a
 fi
 
+REMOVE_VOLUMES=0
+POSITIONAL=()
+while (($#)); do
+  case "$1" in
+    --volumes)
+      REMOVE_VOLUMES=1
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      ;;
+  esac
+  shift
+done
+set -- "${POSITIONAL[@]}"
+
 compose_args() {
   local args=(-f docker/compose.base.yml -f docker/compose.dev.yml)
   if [[ "${OBS_STACK:-0}" == "1" ]]; then
@@ -68,13 +83,17 @@ case "$cmd" in
     echo "==> Deploy stack up — UI $UI_URL | orchestrator $ORCHESTRATOR_URL"
     ;;
   down)
-    "${COMPOSE[@]}" down --remove-orphans
+    down_args=(down --remove-orphans)
+    if [[ "$REMOVE_VOLUMES" == "1" ]]; then
+      down_args+=(-v)
+    fi
+    "${COMPOSE[@]}" "${down_args[@]}"
     ;;
   logs)
     "${COMPOSE[@]}" logs -f "${2:-orchestrator}"
     ;;
   *)
-    echo "Usage: $0 {up|down|logs [service]}" >&2
+    echo "Usage: $0 {up|down|logs [service]} [--volumes]" >&2
     exit 1
     ;;
 esac
