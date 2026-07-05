@@ -5,11 +5,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src import __version__
 from src.api.middleware import ObservabilityMiddleware
 from src.api.routes import catalog_router, health_router, sessions_router
 from src.catalog.provider import JsonCatalogProvider
 from src.checkout.service import CheckoutService
 from src.gateway.factory import gateway_clients
+from src.observability.logging import configure_logging
 from src.session.store import InMemorySessionStore
 from src.settings import Settings, get_settings
 
@@ -34,10 +36,12 @@ async def lifespan(app: FastAPI):
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the orchestrator API application."""
     resolved = settings or get_settings()
+    configure_logging(level=resolved.log_level, json_format=resolved.log_json)
+
     app = FastAPI(
         title="Checkout Orchestrator",
         description="BFF and saga layer for KB-IHMS + EC-OPS checkout integration",
-        version="0.4.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.state.settings = resolved

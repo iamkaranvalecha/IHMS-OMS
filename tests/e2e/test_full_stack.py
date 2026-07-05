@@ -8,6 +8,15 @@ from tests.e2e.conftest import ECOPS_ADMIN_URL, IHMS_ADMIN_URL
 
 
 @pytest.mark.e2e
+async def test_metrics_endpoint(api: httpx.AsyncClient) -> None:
+    response = await api.get("/metrics")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers.get("content-type", "")
+    assert "holds_placed_total" in response.text
+    assert "# TYPE confirms_success_total counter" in response.text
+
+
+@pytest.mark.e2e
 async def test_health(api: httpx.AsyncClient) -> None:
     response = await api.get("/health")
     assert response.status_code == 200

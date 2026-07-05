@@ -31,7 +31,22 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — reconciliation/correlation fixes | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 15 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 
+| 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Cloud Agent — Phase 6 observability | passed | verify.sh 26 unit + 20 integration; JSON logs, /metrics, saga step logging |
+
 ## Session log
+
+### 2026-07-05 — Phase 6 observability + testing (v0.6.0)
+
+**User query:** Add observability and testing to roadmap and implement.
+
+**Actions:**
+- JSON structured logging with request context (`src/observability/`)
+- Saga step logs + Prometheus counters in coordinator
+- `GET /metrics` endpoint; nginx proxy for Docker UI stack
+- Docker: compose observability profile, Prometheus scrape, obs-stack script
+- Unit tests (logging, metrics) + integration observability tests
+- ROADMAP Phase 6 complete; OBSERVABILITY.md updated
 
 ### 2026-07-05 — Unknown order retry guard
 

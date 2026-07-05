@@ -1,10 +1,25 @@
-# Full demo / E2E stack — mock upstreams + orchestrator + UI (Phase 5).
+# Full demo / E2E stack — mock upstreams + orchestrator + UI (Phase 5+).
 # Usage: docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+#
+# With Prometheus metrics scraper (Phase 6):
+#   docker compose -f docker/compose.base.yml -f docker/compose.full.yml \
+#     -f docker/compose.observability.yml --profile obs up --build
 #
 # Optional real upstream images:
 #   IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:latest \
 #   ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:latest \
 #   docker compose -f docker/compose.base.yml -f docker/compose.full.yml up
+
+x-orchestrator-env: &orchestrator-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: ${LOG_JSON:-true}
+  CATALOG_PATH: ${CATALOG_PATH:-/app/catalog/products.json}
+
+x-orchestrator-logging: &orchestrator-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   ihms:
@@ -46,11 +61,13 @@ services:
     ports:
       - "${ORCHESTRATOR_PORT:-8000}:8000"
     environment:
+      <<: *orchestrator-env
       IHMS_BASE_URL: http://ihms:8080
       ECOPS_BASE_URL: http://ecops:8002
       CATALOG_PATH: /app/catalog/products.json
       ECOPS_READ_TIMEOUT: ${ECOPS_READ_TIMEOUT:-2}
       IHMS_READ_TIMEOUT: ${IHMS_READ_TIMEOUT:-5}
+    logging: *orchestrator-logging
     depends_on:
       ihms:
         condition: service_healthy
@@ -79,3 +96,9 @@ services:
         condition: service_healthy
     networks:
       - checkout-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5173/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s

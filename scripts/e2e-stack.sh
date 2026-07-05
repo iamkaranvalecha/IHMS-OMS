@@ -5,11 +5,21 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-COMPOSE=(docker compose -f docker/compose.base.yml -f docker/compose.full.yml)
+compose_args() {
+  local args=(-f docker/compose.base.yml -f docker/compose.full.yml)
+  if [[ "${OBS_STACK:-0}" == "1" ]]; then
+    args+=(-f docker/compose.observability.yml --profile obs)
+  fi
+  printf '%s\n' "${args[@]}"
+}
+
+mapfile -t COMPOSE_ARGS < <(compose_args)
+COMPOSE=(docker compose "${COMPOSE_ARGS[@]}")
 ORCHESTRATOR_URL="${E2E_ORCHESTRATOR_URL:-http://localhost:${ORCHESTRATOR_PORT:-8000}}"
 IHMS_URL="${E2E_IHMS_ADMIN_URL:-http://localhost:${IHMS_PORT:-8080}}"
 ECOPS_URL="${E2E_ECOPS_ADMIN_URL:-http://localhost:${ECOPS_PORT:-8002}}"
 UI_URL="${E2E_UI_URL:-http://localhost:${UI_PORT:-5173}}"
+PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:${PROMETHEUS_PORT:-9090}}"
 
 wait_for_url() {
   local url="$1"
@@ -37,12 +47,20 @@ case "$cmd" in
   up)
     echo "==> Starting full E2E stack"
     export ECOPS_READ_TIMEOUT="${ECOPS_READ_TIMEOUT:-2}"
+    export LOG_JSON="${LOG_JSON:-true}"
     "${COMPOSE[@]}" up -d --build --wait
     wait_for_url "$ORCHESTRATOR_URL/health" "orchestrator"
+    wait_for_url "$ORCHESTRATOR_URL/metrics" "orchestrator-metrics"
     wait_for_url "$IHMS_URL/health" "mock-ihms"
     wait_for_url "$ECOPS_URL/health" "mock-ecops"
     wait_for_url "$UI_URL/health" "ui"
+    if [[ "${OBS_STACK:-0}" == "1" ]]; then
+      wait_for_url "$PROMETHEUS_URL/-/healthy" "prometheus"
+    fi
     echo "==> E2E stack is up"
+    if [[ "${OBS_STACK:-0}" == "1" ]]; then
+      echo "    Prometheus UI: $PROMETHEUS_URL"
+    fi
     ;;
   down)
     echo "==> Stopping full E2E stack"
@@ -52,8 +70,13 @@ case "$cmd" in
     curl -fsS -X POST "$IHMS_URL/_test/reset" >/dev/null
     curl -fsS -X POST "$ECOPS_URL/_test/reset" >/dev/null
     ;;
+  logs)
+    service="${2:-orchestrator}"
+    "${COMPOSE[@]}" logs -f "$service"
+    ;;
   *)
-    echo "Usage: $0 {up|down|reset}" >&2
+    echo "Usage: $0 {up|down|reset|logs [service]}" >&2
+    echo "  OBS_STACK=1 enables Prometheus profile (compose.observability.yml)" >&2
     exit 1
     ;;
 esac

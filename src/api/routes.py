@@ -4,12 +4,14 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_checkout_service
 from src.api.errors import http_exception_for_error
 from src.catalog.provider import CatalogProduct
 from src.checkout.service import CheckoutService
+from src.observability.metrics import get_metrics_registry
 from src.session.models import CheckoutSession
 
 CheckoutDep = Annotated[CheckoutService, Depends(get_checkout_service)]
@@ -28,6 +30,13 @@ async def health(request: Request) -> dict[str, str]:
         "correlation_id": request.state.correlation_id,
         "trace_id": request.state.trace_id,
     }
+
+
+@health_router.get("/metrics")
+async def metrics() -> PlainTextResponse:
+    """Prometheus-style counters for saga outcomes."""
+    body = get_metrics_registry().to_prometheus()
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 class CatalogProductOut(BaseModel):

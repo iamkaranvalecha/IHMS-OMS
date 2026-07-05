@@ -1,5 +1,7 @@
 """Request, correlation, and trace ID middleware."""
 
+import logging
+import time
 import uuid
 from collections.abc import Callable
 
@@ -12,6 +14,9 @@ from src.observability.constants import (
     REQUEST_ID_HEADER,
     TRACE_ID_HEADER,
 )
+from src.observability.context import bind_log_context, clear_log_context, reset_log_context
+
+HTTP_LOGGER = logging.getLogger("checkout.http")
 
 
 class ObservabilityMiddleware(BaseHTTPMiddleware):
@@ -26,8 +31,42 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         request.state.trace_id = trace_id
         request.state.correlation_id = correlation_id
 
-        response = await call_next(request)
-        response.headers[REQUEST_ID_HEADER] = request_id
-        response.headers[TRACE_ID_HEADER] = trace_id
-        response.headers[CORRELATION_ID_HEADER] = correlation_id
-        return response
+        token = bind_log_context(
+            request_id=request_id,
+            correlation_id=correlation_id,
+            trace_id=trace_id,
+        )
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            HTTP_LOGGER.exception(
+                "request failed",
+                extra={
+                    "step": "http_request",
+                    "method": request.method,
+                    "path": request.url.path,
+                    "duration_ms": round(elapsed_ms, 2),
+                },
+            )
+            raise
+        else:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            HTTP_LOGGER.info(
+                "request completed",
+                extra={
+                    "step": "http_request",
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": round(elapsed_ms, 2),
+                },
+            )
+            response.headers[REQUEST_ID_HEADER] = request_id
+            response.headers[TRACE_ID_HEADER] = trace_id
+            response.headers[CORRELATION_ID_HEADER] = correlation_id
+            return response
+        finally:
+            reset_log_context(token)
+            clear_log_context()

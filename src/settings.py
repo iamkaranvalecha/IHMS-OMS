@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ecops_connect_timeout: float = 2.0
     ecops_read_timeout: float = 10.0
 
+    log_level: str = "INFO"
+    log_json: bool = True
+
 
 def get_settings() -> Settings:
     return Settings()

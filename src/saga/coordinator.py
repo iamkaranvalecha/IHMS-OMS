@@ -1,5 +1,6 @@
 """Saga coordinator — hold, confirm, abandon, compensation, reconciliation."""
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -18,6 +19,15 @@ from src.gateway.exceptions import (
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_client import IhmsClient
 from src.gateway.ihms_models import CreateHoldItemRequest
+from src.observability.saga_events import (
+    log_saga_step,
+    record_abandon,
+    record_compensation,
+    record_confirm_success,
+    record_hold_failed,
+    record_hold_placed,
+    record_order_status_unknown,
+)
 from src.saga.exceptions import (
     CompensationIncompleteError,
     HoldExpiredError,
@@ -93,7 +103,18 @@ class SagaCoordinator:
                     f"Cannot place hold from state {session.state.value}",
                 )
 
-            hold = await self.ihms.create_hold(hold_items, headers)
+            try:
+                hold = await self.ihms.create_hold(hold_items, headers)
+            except (HoldConflictError, UpstreamError):
+                record_hold_failed()
+                log_saga_step(
+                    "place_hold",
+                    "hold rejected by upstream",
+                    level=logging.WARNING,
+                    session_id=session_id,
+                    outcome="failed",
+                )
+                raise
             updated = session.model_copy(
                 update={
                     "state": SessionState.HELD,
@@ -103,7 +124,16 @@ class SagaCoordinator:
                     "line_items": [line_item],
                 }
             )
-            return self.sessions.save(updated)
+            saved = self.sessions.save(updated)
+            record_hold_placed()
+            log_saga_step(
+                "place_hold",
+                "hold placed",
+                session_id=session_id,
+                hold_id=hold.hold_id,
+                outcome="success",
+            )
+            return saved
 
     async def confirm(
         self,
@@ -126,6 +156,13 @@ class SagaCoordinator:
                     updates["state"] = SessionState(str(cached_state))
                 if updates:
                     session = self.sessions.save(session.model_copy(update=updates))
+                log_saga_step(
+                    "confirm",
+                    "confirm served from idempotency cache",
+                    session_id=session_id,
+                    order_id=session.order_id,
+                    outcome="cached",
+                )
                 return ConfirmResult(session=session, from_cache=True)
 
             session = self.sessions.get(session_id)
@@ -165,12 +202,22 @@ class SagaCoordinator:
                     client_reference=session.correlation_id,
                 )
                 terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
-                return self._finalize_success_locked(
+                result = self._finalize_success_locked(
                     session,
                     order,
                     idempotency_key,
                     terminal,
                 )
+                record_confirm_success(reconciled=reconciled)
+                log_saga_step(
+                    "reconcile" if reconciled else "confirm",
+                    "checkout confirmed",
+                    session_id=session_id,
+                    hold_id=result.session.hold_id,
+                    order_id=result.session.order_id,
+                    outcome=terminal.value.lower(),
+                )
+                return result
             except UpstreamError:
                 await self._compensate_and_fail_locked(session, headers)
                 raise
@@ -181,6 +228,15 @@ class SagaCoordinator:
                 ) from None
             except OrderStatusUnknownError:
                 self.sessions.save(session.model_copy(update={"idempotency_key": idempotency_key}))
+                record_order_status_unknown()
+                log_saga_step(
+                    "confirm",
+                    "order status unknown after timeout",
+                    level=logging.WARNING,
+                    session_id=session_id,
+                    hold_id=session.hold_id,
+                    outcome="unknown",
+                )
                 raise
             except GatewayError:
                 await self._compensate_and_fail_locked(session, headers)
@@ -207,7 +263,16 @@ class SagaCoordinator:
                         "Failed to release hold while abandoning checkout",
                     )
 
-            return self.sessions.save(session.model_copy(update={"state": SessionState.ABANDONED}))
+            saved = self.sessions.save(session.model_copy(update={"state": SessionState.ABANDONED}))
+            record_abandon()
+            log_saga_step(
+                "abandon",
+                "checkout abandoned",
+                session_id=session_id,
+                hold_id=session.hold_id,
+                outcome="abandoned",
+            )
+            return saved
 
     async def _create_order_with_retry(
         self,
@@ -311,6 +376,15 @@ class SagaCoordinator:
 
         if session.state == SessionState.HELD:
             self.sessions.save(session.model_copy(update={"state": SessionState.COMPENSATED}))
+
+        record_compensation()
+        log_saga_step(
+            "compensate",
+            "hold released after order failure",
+            session_id=session.session_id,
+            hold_id=session.hold_id,
+            outcome="compensated",
+        )
 
     def _build_order_payload(self, session: CheckoutSession, customer_name: str) -> OrderCreate:
         items = [
