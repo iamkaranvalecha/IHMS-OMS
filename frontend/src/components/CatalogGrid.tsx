@@ -22,8 +22,12 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
           const availableQuantity = product.availableQuantity;
           const stockUnknown = availableQuantity === null;
           const outOfStock = availableQuantity !== null && availableQuantity <= 0;
-          const maxQty = availableQuantity === null ? 0 : Math.max(availableQuantity, 0);
+          const maxQty = availableQuantity === null ? undefined : Math.max(availableQuantity, 0);
           const selectedQty = quantities[product.sku] ?? 1;
+          const clampQuantity = (value: number): number => {
+            const positive = Math.max(value, 1);
+            return maxQty === undefined ? positive : Math.min(positive, maxQty);
+          };
           return (
             <li key={product.sku} className="catalog-card">
               <h3>{product.name}</h3>
@@ -36,7 +40,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                     ? "Out of stock"
                     : `${product.availableQuantity} in stock`}
               </p>
-              {!outOfStock && !stockUnknown && (
+              {!outOfStock && (
                 <label className="field quantity-field">
                   <span>Quantity</span>
                   <input
@@ -52,7 +56,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                       }
                       setQuantities((prev) => ({
                         ...prev,
-                        [product.sku]: Math.min(Math.max(parsed, 1), maxQty),
+                        [product.sku]: clampQuantity(parsed),
                       }));
                     }}
                   />
@@ -60,20 +64,20 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
               )}
               <button
                 type="button"
-                disabled={disabled || inCart || outOfStock || stockUnknown}
+                disabled={disabled || inCart || outOfStock}
                 onClick={() => {
-                  const quantity = Math.min(Math.max(selectedQty, 1), maxQty);
+                  const quantity = clampQuantity(selectedQty);
                   onAdd({
                     sku: product.sku,
                     name: product.name,
                     unitPrice: product.unitPrice,
                     quantity,
-                    maxQuantity: maxQty,
+                    maxQuantity: maxQty ?? quantity,
                     stockUnknown,
                   });
                 }}
               >
-                {inCart ? "In cart" : outOfStock ? "Unavailable" : stockUnknown ? "Stock unknown" : "Add to cart"}
+                {inCart ? "In cart" : outOfStock ? "Unavailable" : "Add to cart"}
               </button>
             </li>
           );

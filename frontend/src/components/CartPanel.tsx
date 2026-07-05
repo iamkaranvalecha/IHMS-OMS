@@ -43,8 +43,11 @@ export function CartPanel({
 
   const commitQuantity = (): CartItem => {
     const parsed = Number.parseInt(quantityInput, 10);
+    const positiveQuantity = Number.isFinite(parsed) ? Math.max(parsed, 1) : cart.quantity;
     const quantity = Number.isFinite(parsed)
-      ? Math.min(Math.max(parsed, 1), cart.maxQuantity)
+      ? cart.stockUnknown
+        ? positiveQuantity
+        : Math.min(positiveQuantity, cart.maxQuantity)
       : cart.quantity;
     const nextCart = quantity !== cart.quantity ? { ...cart, quantity } : cart;
     setQuantityInput(String(quantity));
@@ -68,7 +71,7 @@ export function CartPanel({
         <input
           type="number"
           min={1}
-          max={cart.maxQuantity}
+          max={cart.stockUnknown ? undefined : cart.maxQuantity}
           value={quantityInput}
           disabled={disabled}
           onChange={(event) => setQuantityInput(event.target.value)}
@@ -96,7 +99,7 @@ export function CartPanel({
       <button
         type="button"
         className="primary"
-        disabled={disabled || checkoutPending || !customerName.trim() || cart.stockUnknown}
+        disabled={disabled || checkoutPending || !customerName.trim()}
         onClick={() => {
           const nextCart = commitQuantity();
           onCheckout(nextCart);

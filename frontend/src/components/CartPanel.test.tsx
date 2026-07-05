@@ -40,4 +40,32 @@ describe("CartPanel", () => {
     expect(onCartChange).toHaveBeenCalledWith({ ...cart, quantity: 5 });
     expect(onCheckout).toHaveBeenCalledWith({ ...cart, quantity: 5 });
   });
+
+  it("allows checkout with a positive quantity when stock level is unknown", () => {
+    const onCartChange = vi.fn();
+    const onCheckout = vi.fn();
+    const unknownStockCart = {
+      ...cart,
+      maxQuantity: 1,
+      stockUnknown: true,
+    };
+
+    render(
+      <CartPanel
+        cart={unknownStockCart}
+        customerName="Jane Doe"
+        onCustomerNameChange={vi.fn()}
+        onCartChange={onCartChange}
+        onRemove={vi.fn()}
+        onCheckout={onCheckout}
+        checkoutPending={false}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Place hold & checkout" }));
+
+    expect(onCartChange).toHaveBeenCalledWith({ ...unknownStockCart, quantity: 4 });
+    expect(onCheckout).toHaveBeenCalledWith({ ...unknownStockCart, quantity: 4 });
+  });
 });
