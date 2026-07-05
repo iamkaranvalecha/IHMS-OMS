@@ -78,6 +78,10 @@ bash scripts/upstream-stack.sh restart orchestrator
 
 EC-OPS is built using `docker/upstream/ecops/Dockerfile` with build context pointing at the sibling EC-OPS checkout — the assignment repo is not modified.
 
+`bash scripts/upstream-stack.sh down --bundle` preserves KB-IHMS MongoDB and EC-OPS
+Postgres volumes. To intentionally reset bundled upstream data, run
+`bash scripts/upstream-stack.sh down --bundle --volumes`.
+
 ## Mock stack (CI / Lane 1b)
 
 Unchanged — wire-compatible mocks for deterministic E2E:

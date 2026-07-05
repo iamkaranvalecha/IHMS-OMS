@@ -114,7 +114,7 @@ services:
   ecops-api:
     build:
       context: ${ECOPS_PATH:-../EC-OPS}
-      dockerfile: ${ECOPS_DOCKERFILE:-upstream/ecops/Dockerfile}
+      dockerfile: ${ECOPS_DOCKERFILE:-../IHMS-OMS/docker/upstream/ecops/Dockerfile}
       additional_contexts:
         oms-docker: ./upstream/ecops
     image: ${ECOPS_IMAGE:-ec-ops-api:local}

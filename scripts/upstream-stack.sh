@@ -23,13 +23,29 @@ if [[ -f .env ]]; then
 fi
 
 MODE="${UPSTREAM_MODE:-external}"
-if [[ "${1:-}" == "--bundle" ]]; then
-  MODE="bundle"
+REMOVE_VOLUMES=0
+POSITIONAL=()
+while (($#)); do
+  case "$1" in
+    --bundle)
+      MODE="bundle"
+      ;;
+    --external)
+      MODE="external"
+      ;;
+    --volumes)
+      REMOVE_VOLUMES=1
+      ;;
+    *)
+      POSITIONAL+=("$1")
+      ;;
+  esac
   shift
-fi
-if [[ "${1:-}" == "--external" ]]; then
-  MODE="external"
-  shift
+done
+set -- "${POSITIONAL[@]}"
+
+if [[ "$MODE" == "bundle" ]]; then
+  export ECOPS_DOCKERFILE="${ECOPS_DOCKERFILE:-$ROOT/docker/upstream/ecops/Dockerfile}"
 fi
 
 compose_args() {
@@ -119,7 +135,11 @@ case "$cmd" in
     ;;
   down)
     echo "==> Stopping upstream stack (mode=$MODE)"
-    "${COMPOSE[@]}" down -v --remove-orphans
+    down_args=(down --remove-orphans)
+    if [[ "$REMOVE_VOLUMES" == "1" ]]; then
+      down_args+=(-v)
+    fi
+    "${COMPOSE[@]}" "${down_args[@]}"
     ;;
   restart)
     shift || true
@@ -133,9 +153,10 @@ case "$cmd" in
     "${COMPOSE[@]}" ps
     ;;
   *)
-    echo "Usage: $0 [--bundle|--external] {up|down|restart|logs [service]|ps}" >&2
+    echo "Usage: $0 [--bundle|--external] [--volumes] {up|down|restart|logs [service]|ps}" >&2
     echo "  external (default) — connect to upstreams on host ports 5000 / 8002" >&2
     echo "  --bundle           — build KB-IHMS + EC-OPS from sibling paths" >&2
+    echo "  --volumes          — with down, also delete Docker volumes" >&2
     echo "  OBS_STACK=1        — enable Prometheus profile" >&2
     exit 1
     ;;
