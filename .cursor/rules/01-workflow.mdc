@@ -25,11 +25,13 @@ Read [AGENTS.md](../AGENTS.md) for the stable overview; [ROADMAP.md](../ROADMAP.
 
 ## Repository scope
 
-| Repo | Agent may change? |
-|------|-------------------|
-| IHMS-OMS (this repo) | Yes — all integration work |
-| KB-IHMS | Docs/rules only — cross-repo PR, no assignment code |
-| EC-OPS | Never — frozen assignment |
+| Repo | Agent may change? | API evolves independently? |
+|------|-------------------|----------------------------|
+| IHMS-OMS (this repo) | Yes — all integration work | N/A |
+| KB-IHMS | Docs/rules only — cross-repo PR, no assignment code | **Yes** — orchestrator adapts at `src/gateway/` |
+| EC-OPS | Never — assignment code off-limits for agents | **Yes** — orchestrator adapts at `src/gateway/` |
+
+**Agent-frozen ≠ API-frozen.** Upstream repos may ship schema and behaviour changes anytime. IHMS-OMS stays compatible via gateway adaptation, contract tests, mock sync, and periodic real-upstream smoke — see [05-upstream-evolution.mdc](05-upstream-evolution.mdc).
 
 When KB-IHMS docs need updating, open a separate issue and PR in that repo.
 Do not bundle KB-IHMS changes with orchestrator feature PRs unless explicitly coordinated.
@@ -98,7 +100,7 @@ Use lowercase and hyphens. The `-bf51` suffix is required for cloud agent branch
 |------|-------------|
 | CI | `.github/workflows/ci.yml` green |
 | verify.sh | Same command locally: `bash scripts/verify.sh` |
-| Upstream | Confirm KB-IHMS and EC-OPS untouched (or docs-only PR linked) |
+| Upstream | Confirm KB-IHMS/EC-OPS assignment code untouched (or docs-only PR linked); if gateway changed, contract + mocks synced per [05-upstream-evolution.mdc](05-upstream-evolution.mdc) |
 | Docs | Living doc triggers per 04-documentation.mdc |
 
 ### Draft PRs
@@ -134,7 +136,7 @@ Imperative mood, complete sentences in body, reference issue when helpful.
 
 ## OMS integration phase gates (v4 ROADMAP)
 
-Aligned with KB-IHMS `oms-integration.mdc` — orchestrator owns delivery; IHMS/EC-OPS frozen.
+Aligned with KB-IHMS `oms-integration.mdc` — orchestrator owns delivery; agents do not modify upstream assignment code.
 
 | Phase | Goal | Gate before next phase |
 |-------|------|------------------------|
@@ -152,7 +154,7 @@ Append learnings to [ROADMAP.md](../ROADMAP.md) and [AI-USAGE.md](../AI-USAGE.md
 - **IHMS owns hold lifecycle** — stock deduction, expiry, release, events. Orchestrator coordinates checkout; it does not reimplement hold rules.
 - **Contract-first** — integrate via IHMS REST (`POST/GET/DELETE /api/holds`) and optionally RabbitMQ events in Phase 5.
 - **Adapter boundary** — all upstream HTTP in `src/gateway/` only; no OMS/IHMS types leaking into UI.
-- **Additive upstream changes** — none in frozen repos; orchestrator adapts to published contracts.
+- **Upstream evolution** — KB-IHMS/EC-OPS APIs may change independently; orchestrator adapts at `src/gateway/` + contract tests + mocks in one PR. Run real-upstream smoke before releases ([05-upstream-evolution.mdc](05-upstream-evolution.mdc)).
 - **Quality bar** — `bash scripts/verify.sh` must pass before the next phase starts.
 
 ---
@@ -242,6 +244,7 @@ Production hotfix (post Phase 5):
 - Module boundaries → [02-architecture.mdc](02-architecture.mdc)
 - Testing and saga → [03-quality.mdc](03-quality.mdc)
 - Living docs triggers → [04-documentation.mdc](04-documentation.mdc)
+- Upstream drift & dual-lane testing → [05-upstream-evolution.mdc](05-upstream-evolution.mdc)
 
 ---
 
@@ -252,5 +255,6 @@ Production hotfix (post Phase 5):
 3. `bash scripts/verify.sh` passes (ruff + unit + contract + component + integration)
 4. `cd frontend && npm test && npm run build` when frontend changed (Phase 4+)
 5. **[AI-USAGE.md](../AI-USAGE.md)** updated — see [04-documentation.mdc](04-documentation.mdc)
+6. If `src/gateway/`, `tests/contract/`, or `docker/mock-upstreams/` changed — synced per [05-upstream-evolution.mdc](05-upstream-evolution.mdc)
 
 ---

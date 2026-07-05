@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Manage the full-stack Docker compose environment for E2E tests.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+COMPOSE=(docker compose -f docker/compose.base.yml -f docker/compose.full.yml)
+ORCHESTRATOR_URL="${E2E_ORCHESTRATOR_URL:-http://localhost:${ORCHESTRATOR_PORT:-8000}}"
+IHMS_URL="${E2E_IHMS_ADMIN_URL:-http://localhost:${IHMS_PORT:-8080}}"
+ECOPS_URL="${E2E_ECOPS_ADMIN_URL:-http://localhost:${ECOPS_PORT:-8002}}"
+UI_URL="${E2E_UI_URL:-http://localhost:${UI_PORT:-5173}}"
+
+wait_for_url() {
+  local url="$1"
+  local label="$2"
+  local attempts="${3:-60}"
+  local delay="${4:-2}"
+  local i=1
+  while (( i <= attempts )); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      echo "==> $label ready at $url"
+      return 0
+    fi
+    sleep "$delay"
+    ((i++))
+  done
+  echo "ERROR: $label not ready at $url after $((attempts * delay))s" >&2
+  "${COMPOSE[@]}" ps >&2 || true
+  "${COMPOSE[@]}" logs --tail=50 >&2 || true
+  return 1
+}
+
+cmd="${1:-up}"
+
+case "$cmd" in
+  up)
+    echo "==> Starting full E2E stack"
+    export ECOPS_READ_TIMEOUT="${ECOPS_READ_TIMEOUT:-2}"
+    "${COMPOSE[@]}" up -d --build --wait
+    wait_for_url "$ORCHESTRATOR_URL/health" "orchestrator"
+    wait_for_url "$IHMS_URL/health" "mock-ihms"
+    wait_for_url "$ECOPS_URL/health" "mock-ecops"
+    wait_for_url "$UI_URL/health" "ui"
+    echo "==> E2E stack is up"
+    ;;
+  down)
+    echo "==> Stopping full E2E stack"
+    "${COMPOSE[@]}" down -v --remove-orphans
+    ;;
+  reset)
+    curl -fsS -X POST "$IHMS_URL/_test/reset" >/dev/null
+    curl -fsS -X POST "$ECOPS_URL/_test/reset" >/dev/null
+    ;;
+  *)
+    echo "Usage: $0 {up|down|reset}" >&2
+    exit 1
+    ;;
+esac

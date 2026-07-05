@@ -26,8 +26,33 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 4 React UI | passed | backend verify.sh 46 tests; frontend 7 Vitest + build |
 | 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
+| 2026-07-05 | Cloud Agent — Phase 5 full stack E2E | passed | backend verify.sh 47 tests; `STACK=1` runs 7 e2e against mock upstream compose stack |
+| 2026-07-05 | Consolidated PR #15 | passed | Supersedes #13 (frontend idempotency) + #16 (upstream rules); e2e reconcile fix |
 
 ## Session log
+
+### 2026-07-05 — Consolidate open PRs + fix e2e reconcile CI
+
+**User query:** Analyze three open PRs, supersede one, fix e2e CI.
+
+**Actions:**
+- **Supersedes #13 and #16** — cherry-picked into #15 (single merge target)
+- **E2E fix:** saga upstream calls now use `session.correlation_id` (not per-request ID) so reconcile matches mock EC-OPS `client_reference`
+- Integration test `test_confirm_sends_session_correlation_to_ecops`
+- PR #13: frontend confirm idempotency key persistence (`App.tsx`, `App.test.tsx`)
+- PR #16: `05-upstream-evolution.mdc` + rules 01–04 updates
+
+### 2026-07-05 — Phase 5 full stack E2E (v0.5.0)
+
+**User query:** Continue Phase 5 after Phase 4 merge.
+
+**Actions:**
+- Wire-compatible mock IHMS + EC-OPS in `docker/mock-upstreams/`
+- Fixed `docker/compose.full.yml` (healthchecks, nginx UI proxy, removed broken profiles)
+- `scripts/e2e-stack.sh` for up/down/reset; `verify.sh` starts stack when `STACK=1`
+- E2E tests: health, catalog, happy path, hold 409, compensate, reconcile, abandon
+- CI `e2e` job enabled without `continue-on-error`
+- README portfolio section; ROADMAP Phase 5 complete; version 0.5.0
 
 ### 2026-07-04 — Phase 1 scaffold (v4 plan)
 

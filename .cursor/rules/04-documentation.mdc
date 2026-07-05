@@ -177,6 +177,22 @@ Update [PERFORMANCE.md](../docs/PERFORMANCE.md) when:
 
 ---
 
+## Upstream contract documentation
+
+When KB-IHMS or EC-OPS wire format or semantics change ([05-upstream-evolution.mdc](05-upstream-evolution.mdc)):
+
+| Trigger | Update |
+|---------|--------|
+| Gateway model/client field change | `tests/contract/` (living spec), PR body with upstream pin |
+| Error status mapping change | FAILURE-SCENARIOS row + relevant sequence |
+| Reconciliation / idempotency behaviour change | ADR-008 or new ADR, reconciliation sequence |
+| Mock upstream scenario added | Note in PR; AI-USAGE if first Lane 2 smoke run |
+| Pinned upstream image tag changed | AI-USAGE verification row + optional compose comment |
+
+Do not duplicate full upstream OpenAPI in orchestrator docs — link to upstream repo release/tag and record what was verified in AI-USAGE.
+
+---
+
 ## CLAUDE.md discipline
 
 [CLAUDE.md](../CLAUDE.md) must stay **≤150 lines**.
@@ -271,3 +287,4 @@ Before PR merge:
 - Workflow/PR process: [01-workflow.mdc](01-workflow.mdc)
 - Architecture: [02-architecture.mdc](02-architecture.mdc)
 - Testing: [03-quality.mdc](03-quality.mdc)
+- Upstream evolution: [05-upstream-evolution.mdc](05-upstream-evolution.mdc)

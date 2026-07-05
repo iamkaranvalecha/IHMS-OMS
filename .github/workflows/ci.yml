@@ -40,7 +40,6 @@ jobs:
           npm run build
 
   e2e:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,4 +53,5 @@ jobs:
 
       - name: Run E2E tests
         run: STACK=1 bash scripts/verify.sh
-        continue-on-error: true
+        env:
+          ECOPS_READ_TIMEOUT: "2"

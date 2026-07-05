@@ -1,5 +1,5 @@
 ---
-description: Architecture — module layout, dependency rules, frozen upstreams, CatalogProvider
+description: Architecture — module layout, dependency rules, gateway boundary, CatalogProvider
 globs:
   - src/**
   - frontend/**
@@ -24,14 +24,17 @@ Canonical decisions: [docs/DECISION-MATRIX.md](../docs/DECISION-MATRIX.md) and [
 │   (.NET)        │◄────│  (FastAPI + React)    │────►│  (FastAPI)  │
 │   Holds         │     │  THIS REPO            │     │  Orders     │
 └─────────────────┘     └──────────────────────┘     └─────────────┘
-       FROZEN                    ACTIVE                    FROZEN
+  agent: no edits            ACTIVE                 agent: no edits
+  API: may evolve            adapts here            API: may evolve
 ```
 
 - **KB-IHMS**: inventory hold authority — `POST/DELETE /api/holds`
 - **EC-OPS**: order lifecycle — `POST /orders`, status transitions
 - **Orchestrator**: all integration — saga, catalog, BFF, UI
 
-Never add integration logic to frozen repos. Never call upstreams from UI.
+Agents do not add integration logic to upstream assignment repos. APIs in those repos **may evolve** — absorb changes only in `src/gateway/`. Never call upstreams from UI.
+
+See [05-upstream-evolution.mdc](05-upstream-evolution.mdc) for drift detection and upgrade workflow.
 
 ### Integration boundary (from KB-IHMS architecture.mdc)
 
@@ -114,6 +117,7 @@ class EcOpsClient:
 - Forward X-Request-ID, X-Correlation-ID, X-Trace-ID
 - Map HTTP errors to domain exceptions for saga
 - **No business logic** — no saga state, no catalog mapping
+- **Single adaptation point** when KB-IHMS or EC-OPS wire format changes — update models/clients here first ([05-upstream-evolution.mdc](05-upstream-evolution.mdc))
 
 ### KB-IHMS hold lifecycle (consumer contract)
 
@@ -233,7 +237,8 @@ Do not create a monolithic `docker-compose.yml`. Use layered files:
 ```
 docker/compose.base.yml   # networks, anchors
 docker/compose.dev.yml    # orchestrator + optional UI
-docker/compose.full.yml   # + IHMS + EC-OPS for E2E
+docker/compose.full.yml   # + mock or real upstreams for E2E (see 05-upstream-evolution)
+docker/mock-upstreams/    # wire-compatible mocks — must match contract tests
 ```
 
 ---
@@ -283,3 +288,4 @@ Before merging structural changes:
 - Workflow: [01-workflow.mdc](01-workflow.mdc)
 - Testing/saga quality: [03-quality.mdc](03-quality.mdc)
 - Doc updates: [04-documentation.mdc](04-documentation.mdc)
+- Upstream evolution: [05-upstream-evolution.mdc](05-upstream-evolution.mdc)

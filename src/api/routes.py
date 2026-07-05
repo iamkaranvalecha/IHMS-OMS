@@ -164,9 +164,12 @@ async def place_hold(
     request: Request,
     checkout: CheckoutDep,
 ) -> SessionResponse:
-    headers = checkout.observability_from_request(
+    session = checkout.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    headers = checkout.observability_for_session(
+        session,
         request.state.request_id,
-        request.state.correlation_id,
         request.state.trace_id,
     )
     try:
@@ -192,9 +195,12 @@ async def confirm_session(
 ) -> SessionResponse:
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
-    headers = checkout.observability_from_request(
+    session = checkout.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    headers = checkout.observability_for_session(
+        session,
         request.state.request_id,
-        request.state.correlation_id,
         request.state.trace_id,
     )
     customer_name = body.customer_name if body else None
@@ -211,9 +217,12 @@ async def abandon_session(
     request: Request,
     checkout: CheckoutDep,
 ) -> SessionResponse:
-    headers = checkout.observability_from_request(
+    session = checkout.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    headers = checkout.observability_for_session(
+        session,
         request.state.request_id,
-        request.state.correlation_id,
         request.state.trace_id,
     )
     try:

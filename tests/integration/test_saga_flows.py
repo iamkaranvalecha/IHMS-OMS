@@ -215,6 +215,41 @@ async def test_confirm_requires_idempotency_key(client: AsyncClient) -> None:
 
 
 @respx.mock
+async def test_confirm_sends_session_correlation_to_ecops(client: AsyncClient) -> None:
+    create = await client.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+    session_correlation_id = create.json()["correlation_id"]
+
+    respx.post("http://ihms.test/api/holds").mock(
+        return_value=httpx.Response(201, json=_ihms_hold_response("hold-corr"))
+    )
+    await client.post(
+        f"/sessions/{session_id}/hold",
+        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
+    )
+
+    order_id = str(uuid4())
+    order_route = respx.post("http://ecops.test/orders").mock(
+        return_value=httpx.Response(
+            201,
+            json=_ecops_order_response(order_id, session_correlation_id),
+        )
+    )
+    respx.get("http://ihms.test/api/holds/hold-corr").mock(
+        return_value=httpx.Response(200, json=_ihms_hold_response("hold-corr"))
+    )
+
+    confirm = await client.post(
+        f"/sessions/{session_id}/confirm",
+        json={},
+        headers={"Idempotency-Key": "idem-corr"},
+    )
+    assert confirm.status_code == 200
+    assert order_route.called
+    assert order_route.calls[0].request.headers["X-Correlation-ID"] == session_correlation_id
+
+
+@respx.mock
 async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
     session_id = create.json()["session_id"]
