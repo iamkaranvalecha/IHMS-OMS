@@ -28,9 +28,9 @@ Start upstreams from their repos first, then run orchestrator + UI only:
 # EC-OPS:  cd ../EC-OPS && uv run python -m src.main
 
 cp .env.example .env
-# Edit .env — set IHMS_BASE_URL, ECOPS_BASE_URL, ECOPS_BEARER_TOKEN
+bash scripts/ecops-token.sh
 
 docker compose up orchestrator ui --no-deps --build
 ```
 
-Get EC-OPS JWT: `curl -X POST http://localhost:8002/auth/token -d "username=USER&password=PASS"`
+`ecops-token.sh` maps `host.docker.internal` to `localhost` when fetching the JWT from your host.
