@@ -18,7 +18,7 @@ When `POST /orders` times out, order creation is **unknown**:
 1. Query EC-OPS for order by client reference / correlation / idempotency key.
 2. If found → attach `order_id`, complete session.
 3. If lookup succeeds and no trusted match exists → safe to compensate (release hold) or retry with same idempotency key.
-4. If lookup fails → retain the hold and return 503 because order status is still unknown.
+4. If lookup fails → retain the hold and return 503; retry with the original idempotency key to reconcile before any new order create.
 
 Detail: [sequences/reconciliation.md](sequences/reconciliation.md).
 

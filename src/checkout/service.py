@@ -86,7 +86,11 @@ class CheckoutService:
         headers: ObservabilityHeaders,
     ) -> ConfirmResult:
         session = self.sessions.get(session_id)
-        if session is not None and session.state == SessionState.HELD:
+        if (
+            session is not None
+            and session.state == SessionState.HELD
+            and session.idempotency_key is None
+        ):
             await self.saga.validate_hold_active(session, headers)
         return await self.saga.confirm(session_id, customer_name, idempotency_key, headers)
 

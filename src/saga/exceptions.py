@@ -31,3 +31,7 @@ class IdempotencyConflictError(SagaError):
 
 class CompensationIncompleteError(SagaError):
     """Hold release failed after order failure — session not marked compensated."""
+
+
+class OrderStatusUnknownError(CompensationIncompleteError):
+    """Order creation may have succeeded, but reconciliation could not verify it."""
