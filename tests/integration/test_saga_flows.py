@@ -162,10 +162,12 @@ async def test_duplicate_confirm_returns_cached(client: AsyncClient) -> None:
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold_response("hold-dup"))
     )
-    await client.post(
+    hold_resp = await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
+    assert hold_resp.status_code == 200
+    assert hold_resp.json()["state"] == "HELD"
 
     order_id = str(uuid4())
     order_route = respx.post("http://ecops.test/orders").mock(
@@ -295,10 +297,12 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold_response("hold-reconcile-error"))
     )
-    await client.post(
+    hold_resp = await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
+    assert hold_resp.status_code == 200
+    assert hold_resp.json()["state"] == "HELD"
 
     respx.post("http://ecops.test/orders").mock(side_effect=httpx.TimeoutException("timeout"))
     respx.get("http://ihms.test/api/holds/hold-reconcile-error").mock(
