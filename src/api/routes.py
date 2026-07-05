@@ -1,7 +1,7 @@
 """API route modules."""
 
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -112,7 +112,7 @@ class SessionResponse(BaseModel):
 class SessionCreateBody(BaseModel):
     correlation_id: str | None = Field(
         default=None,
-        description="Optional; defaults to request correlation ID",
+        description="Deprecated; session correlation IDs are generated server-side",
     )
 
 
@@ -135,10 +135,7 @@ async def create_session(
     checkout: CheckoutDep,
     body: SessionCreateBody | None = None,
 ) -> SessionCreateResponse:
-    correlation_id = (body.correlation_id if body and body.correlation_id else None) or (
-        request.state.correlation_id
-    )
-    session = checkout.create_session(correlation_id)
+    session = checkout.create_session(str(uuid4()))
     return SessionCreateResponse(
         session_id=session.session_id,
         correlation_id=session.correlation_id,
