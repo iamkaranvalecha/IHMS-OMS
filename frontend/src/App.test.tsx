@@ -13,7 +13,7 @@ vi.mock("@/api/hooks", () => ({
 }));
 
 vi.mock("@/components/CatalogGrid", () => ({
-  CatalogGrid: ({ onAdd }: { onAdd: (item: CatalogProduct & { quantity: number }) => void }) => (
+  CatalogGrid: ({ onAdd }: { onAdd: (item: CatalogProduct & { quantity: number; maxQuantity: number }) => void }) => (
     <button
       type="button"
       onClick={() =>
@@ -23,7 +23,9 @@ vi.mock("@/components/CatalogGrid", () => ({
           ihmsProductId: "prod-widget-001",
           ecopsItemCode: "WIDGET-001",
           unitPrice: 19.99,
+          availableQuantity: 10,
           quantity: 1,
+          maxQuantity: 10,
         })
       }
     >
@@ -94,6 +96,7 @@ const catalogProduct: CatalogProduct = {
   ihmsProductId: "prod-widget-001",
   ecopsItemCode: "WIDGET-001",
   unitPrice: 19.99,
+  availableQuantity: 100,
 };
 
 function setupHooks() {

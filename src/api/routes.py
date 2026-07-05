@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from src.api.deps import get_checkout_service
 from src.api.errors import http_exception_for_error
+from src.catalog.inventory import CatalogProductWithAvailability
 from src.catalog.provider import CatalogProduct
 from src.checkout.service import CheckoutService
 from src.observability.metrics import get_metrics_registry
@@ -45,6 +46,7 @@ class CatalogProductOut(BaseModel):
     ihms_product_id: str
     ecops_item_code: str
     unit_price: float
+    available_quantity: int
 
     @classmethod
     def from_catalog(cls, product: CatalogProduct) -> "CatalogProductOut":
@@ -54,22 +56,56 @@ class CatalogProductOut(BaseModel):
             ihms_product_id=product.ihms_product_id,
             ecops_item_code=product.ecops_item_code,
             unit_price=product.unit_price,
+            available_quantity=0,
+        )
+
+    @classmethod
+    def from_enriched(cls, product: "CatalogProductWithAvailability") -> "CatalogProductOut":
+        return cls(
+            sku=product.sku,
+            name=product.name,
+            ihms_product_id=product.ihms_product_id,
+            ecops_item_code=product.ecops_item_code,
+            unit_price=product.unit_price,
+            available_quantity=product.available_quantity,
         )
 
 
 @catalog_router.get("", response_model=list[CatalogProductOut])
-async def list_catalog(checkout: CheckoutDep) -> list[CatalogProductOut]:
-    return [CatalogProductOut.from_catalog(p) for p in checkout.list_catalog()]
+async def list_catalog(request: Request, checkout: CheckoutDep) -> list[CatalogProductOut]:
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    try:
+        products = await checkout.list_catalog_with_inventory(headers)
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return [CatalogProductOut.from_enriched(p) for p in products]
 
 
 @catalog_router.get("/{sku}", response_model=CatalogProductOut)
 async def get_catalog_product(
     sku: str,
+    request: Request,
     checkout: CheckoutDep,
 ) -> CatalogProductOut:
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
     product = checkout.get_product(sku)
     if product is None:
         raise HTTPException(status_code=404, detail=f"Product {sku} not found")
+    try:
+        enriched = await checkout.list_catalog_with_inventory(headers)
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    match = next((item for item in enriched if item.sku == sku), None)
+    if match is not None:
+        return CatalogProductOut.from_enriched(match)
     return CatalogProductOut.from_catalog(product)
 
 

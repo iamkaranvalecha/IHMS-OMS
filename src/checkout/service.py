@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from src.catalog.inventory import CatalogProductWithAvailability, list_catalog_with_inventory
 from src.catalog.provider import CatalogProduct, CatalogProvider
 from src.gateway.ecops_client import EcOpsClient
 from src.gateway.headers import ObservabilityHeaders
@@ -64,6 +65,12 @@ class CheckoutService:
 
     def list_catalog(self) -> list[CatalogProduct]:
         return self.catalog.list_products()
+
+    async def list_catalog_with_inventory(
+        self,
+        headers: ObservabilityHeaders,
+    ) -> list[CatalogProductWithAvailability]:
+        return await list_catalog_with_inventory(self.catalog, self.ihms, headers)
 
     def get_product(self, sku: str) -> CatalogProduct | None:
         return self.catalog.get_product(sku)

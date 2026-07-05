@@ -5,6 +5,7 @@ interface CartPanelProps {
   cart: CartItem | null;
   customerName: string;
   onCustomerNameChange: (value: string) => void;
+  onCartChange: (item: CartItem | null) => void;
   onRemove: () => void;
   onCheckout: () => void;
   checkoutPending: boolean;
@@ -15,6 +16,7 @@ export function CartPanel({
   cart,
   customerName,
   onCustomerNameChange,
+  onCartChange,
   onRemove,
   onCheckout,
   checkoutPending,
@@ -33,6 +35,25 @@ export function CartPanel({
             </span>
             <span>{formatCurrency(cart.unitPrice * cart.quantity)}</span>
           </div>
+          <label className="field quantity-field">
+            <span>Quantity</span>
+            <input
+              type="number"
+              min={1}
+              max={cart.maxQuantity}
+              value={cart.quantity}
+              disabled={disabled}
+              onChange={(event) => {
+                const parsed = Number.parseInt(event.target.value, 10);
+                if (!Number.isFinite(parsed)) {
+                  return;
+                }
+                const quantity = Math.min(Math.max(parsed, 1), cart.maxQuantity);
+                onCartChange({ ...cart, quantity });
+              }}
+            />
+          </label>
+          <p className="muted">Up to {cart.maxQuantity} available</p>
           <button type="button" className="link-button" onClick={onRemove} disabled={disabled}>
             Remove
           </button>

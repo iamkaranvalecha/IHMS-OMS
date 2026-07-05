@@ -33,6 +33,44 @@ async def test_catalog_lists_products(api: httpx.AsyncClient) -> None:
     products = response.json()
     assert len(products) >= 1
     assert products[0]["sku"] == "WIDGET-001"
+    assert "available_quantity" in products[0]
+
+
+@pytest.mark.e2e
+async def test_catalog_shows_live_inventory(api: httpx.AsyncClient) -> None:
+    response = await api.get("/catalog")
+    assert response.status_code == 200
+    products = response.json()
+    widget = next(item for item in products if item["sku"] == "WIDGET-001")
+    assert widget["available_quantity"] >= 1
+    initial_qty = widget["available_quantity"]
+
+    create = await api.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+    correlation_id = create.json()["correlation_id"]
+
+    hold = await api.post(
+        f"/sessions/{session_id}/hold",
+        json={"sku": "WIDGET-001", "quantity": 2, "customer_name": "Inventory E2E"},
+    )
+    assert hold.status_code == 200
+
+    after_hold = await api.get("/catalog")
+    widget_after_hold = next(item for item in after_hold.json() if item["sku"] == "WIDGET-001")
+    assert widget_after_hold["available_quantity"] == initial_qty - 2
+
+    confirm = await api.post(
+        f"/sessions/{session_id}/confirm",
+        json={},
+        headers={"Idempotency-Key": f"e2e-inventory-{correlation_id}"},
+    )
+    assert confirm.status_code == 200
+
+    after_confirm = await api.get("/catalog")
+    widget_after_confirm = next(
+        item for item in after_confirm.json() if item["sku"] == "WIDGET-001"
+    )
+    assert widget_after_confirm["available_quantity"] == initial_qty - 2
 
 
 @pytest.mark.e2e

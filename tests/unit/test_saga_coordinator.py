@@ -48,6 +48,7 @@ def saga(catalog: JsonCatalogProvider) -> SagaCoordinator:
     ihms.create_hold = AsyncMock()
     ihms.get_hold = AsyncMock()
     ihms.release_hold = AsyncMock()
+    ihms.fulfill_hold = AsyncMock()
     ecops = MagicMock()
     ecops.create_order = AsyncMock()
     ecops.find_order_by_client_reference = AsyncMock(return_value=None)
@@ -156,6 +157,7 @@ async def test_confirm_happy_path(saga: SagaCoordinator, obs: ObservabilityHeade
     assert result.session.state == SessionState.CONFIRMED
     assert result.session.order_id == str(order_id)
     assert result.from_cache is False
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
 
 
 @pytest.mark.asyncio
@@ -267,6 +269,7 @@ async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: Observability
     assert result.session.state == SessionState.RECONCILED
     assert result.session.order_id == str(order_id)
     saga.ihms.release_hold.assert_not_awaited()
+    saga.ihms.fulfill_hold.assert_awaited_once_with("hold-1", obs)
 
 
 @pytest.mark.asyncio

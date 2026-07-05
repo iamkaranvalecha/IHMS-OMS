@@ -61,6 +61,12 @@ def _ecops_order_response(order_id: str, client_ref: str) -> dict:
     }
 
 
+def _mock_fulfill(hold_id: str) -> None:
+    respx.post(f"http://ihms.test/api/holds/{hold_id}/fulfill").mock(
+        return_value=httpx.Response(204)
+    )
+
+
 @respx.mock
 async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
@@ -86,6 +92,7 @@ async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
     respx.get("http://ihms.test/api/holds/hold-int").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response())
     )
+    _mock_fulfill("hold-int")
 
     confirm = await client.post(
         f"/sessions/{session_id}/confirm",
@@ -176,6 +183,7 @@ async def test_duplicate_confirm_returns_cached(client: AsyncClient) -> None:
     respx.get("http://ihms.test/api/holds/hold-dup").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-dup"))
     )
+    _mock_fulfill("hold-dup")
 
     headers = {"Idempotency-Key": "idem-dup-key"}
     first = await client.post(f"/sessions/{session_id}/confirm", json={}, headers=headers)
@@ -242,6 +250,7 @@ async def test_confirm_sends_session_correlation_to_ecops(client: AsyncClient) -
     respx.get("http://ihms.test/api/holds/hold-corr").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-corr"))
     )
+    _mock_fulfill("hold-corr")
 
     confirm = await client.post(
         f"/sessions/{session_id}/confirm",
@@ -278,6 +287,7 @@ async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
             json=[_ecops_order_response(order_id, correlation_id)],
         )
     )
+    _mock_fulfill("hold-reconcile")
 
     confirm = await client.post(
         f"/sessions/{session_id}/confirm",
@@ -357,6 +367,7 @@ async def test_retry_after_reconcile_lookup_failure_resolves_without_duplicate_o
             httpx.Response(200, json=[_ecops_order_response(order_id, correlation_id)]),
         ]
     )
+    _mock_fulfill("hold-unknown")
 
     headers = {"Idempotency-Key": "idem-unknown"}
     first = await client.post(f"/sessions/{session_id}/confirm", json={}, headers=headers)

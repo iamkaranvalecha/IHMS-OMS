@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5180",
+        "http://127.0.0.1:5180",
     ]
 
     ihms_connect_timeout: float = 2.0

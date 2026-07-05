@@ -10,6 +10,14 @@ class HoldStatus(StrEnum):
     ACTIVE = "Active"
     RELEASED = "Released"
     EXPIRED = "Expired"
+    FULFILLED = "Fulfilled"
+
+
+class InventoryItemResponse(BaseModel):
+    product_id: str = Field(alias="productId")
+    available_quantity: int = Field(alias="availableQuantity")
+
+    model_config = {"populate_by_name": True}
 
 
 class CreateHoldItemRequest(BaseModel):

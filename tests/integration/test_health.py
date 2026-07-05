@@ -3,14 +3,26 @@
 from collections.abc import AsyncIterator
 from uuid import UUID
 
+import httpx
 import pytest
+import respx
 from httpx import ASGITransport, AsyncClient
 from src.api import create_app
+from src.settings import Settings
 
 
 @pytest.fixture
-async def client() -> AsyncIterator[AsyncClient]:
-    app = create_app()
+def settings() -> Settings:
+    return Settings(
+        ihms_base_url="http://ihms.test",
+        ecops_base_url="http://ecops.test",
+        ecops_bearer_token="test-token",
+    )
+
+
+@pytest.fixture
+async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
+    app = create_app(settings)
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -30,7 +42,17 @@ async def test_health_returns_observability_ids(client: AsyncClient) -> None:
     assert response.headers.get("X-Trace-ID")
 
 
+@respx.mock
 async def test_catalog_list_returns_products(client: AsyncClient) -> None:
+    respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"productId": "prod-widget-001", "availableQuantity": 100},
+                {"productId": "prod-gadget-002", "availableQuantity": 50},
+            ],
+        )
+    )
     response = await client.get("/catalog")
     assert response.status_code == 200
     products = response.json()
@@ -38,6 +60,7 @@ async def test_catalog_list_returns_products(client: AsyncClient) -> None:
     assert "sku" in products[0]
     assert "ihms_product_id" in products[0]
     assert "ecops_item_code" in products[0]
+    assert products[0]["available_quantity"] == 100
 
 
 async def test_create_and_get_session(client: AsyncClient) -> None:

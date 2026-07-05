@@ -78,6 +78,9 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     respx.get("http://ihms.test/api/holds/hold-obs").mock(
         return_value=httpx.Response(200, json=_ihms_hold())
     )
+    respx.post("http://ihms.test/api/holds/hold-obs/fulfill").mock(
+        return_value=httpx.Response(204)
+    )
     await client.post(
         f"/sessions/{session_id}/confirm",
         json={},

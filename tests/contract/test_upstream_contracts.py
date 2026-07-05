@@ -202,3 +202,49 @@ async def test_ecops_find_order_by_client_reference_ignores_unmatched_orders(
 
     assert result is None
     assert respx.calls[0].request.url.params.get("client_ref") is None
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_ihms_get_inventory_parses_response(ihms_client: IhmsClient) -> None:
+    route = respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {"productId": "prod-widget-001", "availableQuantity": 12},
+                {"productId": "prod-gadget-002", "availableQuantity": 3},
+            ],
+        )
+    )
+
+    result = await ihms_client.get_inventory(OBS)
+
+    assert route.called
+    assert len(result) == 2
+    assert result[0].product_id == "prod-widget-001"
+    assert result[0].available_quantity == 12
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_ihms_fulfill_hold_posts_to_fulfill_endpoint(ihms_client: IhmsClient) -> None:
+    route = respx.post("http://ihms.test/api/holds/hold-abc/fulfill").mock(
+        return_value=httpx.Response(204)
+    )
+
+    await ihms_client.fulfill_hold("hold-abc", OBS)
+
+    assert route.called
+    assert route.calls[0].request.headers["X-Correlation-ID"] == "corr-1"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_ihms_fulfill_hold_treats_404_as_noop(ihms_client: IhmsClient) -> None:
+    route = respx.post("http://ihms.test/api/holds/hold-missing/fulfill").mock(
+        return_value=httpx.Response(404, json={"title": "Not Found"})
+    )
+
+    await ihms_client.fulfill_hold("hold-missing", OBS)
+
+    assert route.called

@@ -14,6 +14,7 @@ export interface CatalogProduct {
   ihmsProductId: string;
   ecopsItemCode: string;
   unitPrice: number;
+  availableQuantity: number;
 }
 
 export interface SessionLineItem {
@@ -50,6 +51,7 @@ export interface CartItem {
   name: string;
   unitPrice: number;
   quantity: number;
+  maxQuantity: number;
 }
 
 export interface ApiError extends Error {

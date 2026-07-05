@@ -38,6 +38,7 @@ from src.saga.exceptions import (
 )
 from src.saga.idempotency import IdempotencyRecord, IdempotencyStore
 from src.saga.steps.compensate import release_hold_safe
+from src.saga.steps.finalize import fulfill_hold_safe
 from src.saga.steps.reconcile import find_order_by_reference
 from src.session.models import CheckoutSession, SessionLineItem, SessionState
 from src.session.store import LockedSessionStore
@@ -201,6 +202,8 @@ class SagaCoordinator:
                     idempotency_key=idempotency_key,
                     client_reference=session.correlation_id,
                 )
+                if session.hold_id:
+                    await fulfill_hold_safe(self.ihms, session.hold_id, headers)
                 terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
                 result = self._finalize_success_locked(
                     session,
@@ -349,6 +352,8 @@ class SagaCoordinator:
                 detail="Order status is unknown; hold was not released",
             ) from exc
         if order is not None:
+            if session.hold_id:
+                await fulfill_hold_safe(self.ihms, session.hold_id, headers)
             return self._finalize_success_locked(
                 session,
                 order,

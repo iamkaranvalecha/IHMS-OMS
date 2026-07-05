@@ -28,6 +28,7 @@ def checkout(catalog: JsonCatalogProvider) -> CheckoutService:
     ihms.create_hold = AsyncMock()
     ihms.get_hold = AsyncMock()
     ihms.release_hold = AsyncMock()
+    ihms.fulfill_hold = AsyncMock()
     ecops = MagicMock()
     ecops.create_order = AsyncMock()
     ecops.find_order_by_client_reference = AsyncMock(return_value=None)

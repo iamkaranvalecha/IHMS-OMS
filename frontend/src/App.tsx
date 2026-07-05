@@ -165,6 +165,7 @@ export function App() {
             cart={cart}
             customerName={customerName}
             onCustomerNameChange={setCustomerName}
+            onCartChange={setCart}
             onRemove={() => setCart(null)}
             onCheckout={() => void handleStartCheckout()}
             checkoutPending={startCheckout.isPending}
