@@ -206,11 +206,17 @@ class SagaCoordinator:
         try:
             order = await self.ecops.create_order(payload, headers, idempotency_key=idempotency_key)
             return order, False
-        except GatewayTimeoutError:
-            order = await find_order_by_reference(self.ecops, client_reference, headers)
+        except GatewayTimeoutError as create_timeout:
+            try:
+                order = await find_order_by_reference(self.ecops, client_reference, headers)
+            except GatewayError as exc:
+                raise CompensationIncompleteError(
+                    "Order creation timed out and reconciliation failed; hold retained",
+                    detail="Order status is unknown; hold was not released",
+                ) from exc
             if order is not None:
                 return order, True
-            raise
+            raise create_timeout
 
     def _finalize_success_locked(
         self,

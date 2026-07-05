@@ -18,7 +18,8 @@ not attach an unfiltered list result or retry `POST /orders` blindly.
 
 - `src/saga/steps/reconcile.py` handles the unknown-outcome path.
 - EC-OPS list/filter or client reference field is required for successful reconciliation.
-- Without a trusted match, the orchestrator compensates the hold and returns an ambiguous timeout error instead of risking duplicate orders.
+- If reconciliation succeeds but returns no trusted match, the orchestrator compensates the hold and returns an ambiguous timeout error instead of risking duplicate orders.
+- If reconciliation itself fails, the orchestrator retains the hold and returns 503 because releasing inventory while an order may exist would create order/hold divergence.
 - Documented in [sequences/reconciliation.md](../sequences/reconciliation.md).
 
 ## Open questions

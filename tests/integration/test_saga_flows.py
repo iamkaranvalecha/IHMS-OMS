@@ -75,7 +75,7 @@ async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Integration Customer"},
     )
-    assert hold_resp.status_code == 200
+    assert hold_resp.status_code == 200, hold_resp.text
     assert hold_resp.json()["state"] == "HELD"
     assert hold_resp.json()["hold_id"] == "hold-int"
 
@@ -124,10 +124,12 @@ async def test_confirm_compensates_when_order_fails(client: AsyncClient) -> None
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold_response("hold-fail"))
     )
-    await client.post(
+    hold_resp = await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
+    assert hold_resp.status_code == 200, hold_resp.text
+    assert hold_resp.json()["state"] == "HELD"
 
     respx.get("http://ihms.test/api/holds/hold-fail").mock(
         return_value=httpx.Response(200, json=_ihms_hold_response("hold-fail"))
@@ -160,10 +162,12 @@ async def test_duplicate_confirm_returns_cached(client: AsyncClient) -> None:
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold_response("hold-dup"))
     )
-    await client.post(
+    hold_resp = await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
     )
+    assert hold_resp.status_code == 200
+    assert hold_resp.json()["state"] == "HELD"
 
     order_id = str(uuid4())
     order_route = respx.post("http://ecops.test/orders").mock(
@@ -283,6 +287,41 @@ async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
     assert confirm.status_code == 200
     assert confirm.json()["state"] == "RECONCILED"
     assert confirm.json()["order_id"] == order_id
+
+
+@respx.mock
+async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> None:
+    create = await client.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+
+    respx.post("http://ihms.test/api/holds").mock(
+        return_value=httpx.Response(201, json=_ihms_hold_response("hold-reconcile-error"))
+    )
+    hold_resp = await client.post(
+        f"/sessions/{session_id}/hold",
+        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Customer"},
+    )
+    assert hold_resp.status_code == 200, hold_resp.text
+    assert hold_resp.json()["state"] == "HELD"
+
+    respx.post("http://ecops.test/orders").mock(side_effect=httpx.TimeoutException("timeout"))
+    respx.get("http://ihms.test/api/holds/hold-reconcile-error").mock(
+        return_value=httpx.Response(200, json=_ihms_hold_response("hold-reconcile-error"))
+    )
+    respx.get("http://ecops.test/orders").mock(
+        return_value=httpx.Response(503, json={"detail": "Order list unavailable"})
+    )
+    confirm = await client.post(
+        f"/sessions/{session_id}/confirm",
+        json={},
+        headers={"Idempotency-Key": "idem-reconcile-error"},
+    )
+
+    assert confirm.status_code == 503, confirm.json()
+    get_resp = await client.get(f"/sessions/{session_id}")
+    body = get_resp.json()
+    assert body["state"] == "HELD"
+    assert body["order_id"] is None
 
 
 @respx.mock

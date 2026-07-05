@@ -32,6 +32,9 @@ sequenceDiagram
     OPS-->>API: no trusted match
     API->>IHMS: DELETE /api/holds/{hold_id}
     Note over API: COMPENSATED; no blind POST retry
+  else Lookup unavailable
+    OPS--xAPI: timeout / 5xx while listing orders
+    Note over API: Session remains HELD; hold retained because order outcome is still unknown
   end
 ```
 
@@ -39,6 +42,7 @@ sequenceDiagram
 
 1. **Trusted match found** → attach `order_id`, complete session; do not release hold.
 2. **No trusted match** → compensate the hold and surface the ambiguous timeout.
-3. Log `step: reconcile` with all IDs for audit.
+3. **Lookup unavailable** → do not release the hold; surface 503 so the ambiguous order outcome can be investigated or retried after EC-OPS recovers.
+4. Log `step: reconcile` with all IDs for audit.
 
 See [ADR-008](../adr/ADR-008-reconciliation-timeout.md).
