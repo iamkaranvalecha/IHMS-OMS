@@ -9,7 +9,7 @@ interface CartPanelProps {
   onCustomerNameChange: (value: string) => void;
   onCartChange: (item: CartItem | null) => void;
   onRemove: () => void;
-  onCheckout: () => void;
+  onCheckout: (item: CartItem) => void;
   checkoutPending: boolean;
   disabled?: boolean;
 }
@@ -41,15 +41,17 @@ export function CartPanel({
     );
   }
 
-  const commitQuantity = () => {
+  const commitQuantity = (): CartItem => {
     const parsed = Number.parseInt(quantityInput, 10);
     const quantity = Number.isFinite(parsed)
       ? Math.min(Math.max(parsed, 1), cart.maxQuantity)
       : cart.quantity;
+    const nextCart = quantity !== cart.quantity ? { ...cart, quantity } : cart;
     setQuantityInput(String(quantity));
     if (quantity !== cart.quantity) {
-      onCartChange({ ...cart, quantity });
+      onCartChange(nextCart);
     }
+    return nextCart;
   };
 
   return (
@@ -96,8 +98,8 @@ export function CartPanel({
         className="primary"
         disabled={disabled || checkoutPending || !customerName.trim() || cart.stockUnknown}
         onClick={() => {
-          commitQuantity();
-          onCheckout();
+          const nextCart = commitQuantity();
+          onCheckout(nextCart);
         }}
       >
         {checkoutPending ? "Placing hold…" : "Place hold & checkout"}
