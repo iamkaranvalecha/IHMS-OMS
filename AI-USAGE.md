@@ -26,8 +26,18 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 4 React UI | passed | backend verify.sh 46 tests; frontend 7 Vitest + build |
 | 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
+| 2026-07-05 | Cloud Agent — upstream evolution cursor rules | passed | docs/rules only; `bash scripts/verify.sh` 46 tests |
 
 ## Session log
+
+### 2026-07-05 — Upstream evolution cursor rules
+
+**User query:** Upstream repos evolve independently; create/update cursor rules for ongoing reality.
+
+**Actions:**
+- Added `.cursor/rules/05-upstream-evolution.mdc` — agent-frozen vs API-evolving terminology, dual-lane testing, gateway+contract+mock sync, upgrade workflow
+- Updated 01-workflow, 02-architecture, 03-quality, 04-documentation with cross-references and corrected "frozen" language
+- Updated AGENTS.md (five-rule set) and CLAUDE.md
 
 ### 2026-07-04 — Phase 1 scaffold (v4 plan)
 

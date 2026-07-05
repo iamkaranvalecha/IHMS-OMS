@@ -1,0 +1,251 @@
+---
+description: Upstream evolution — KB-IHMS/EC-OPS drift, dual-lane testing, gateway adaptation workflow
+globs:
+  - src/gateway/**
+  - tests/contract/**
+  - docker/mock-upstreams/**
+  - docker/compose.full.yml
+  - scripts/e2e-stack.sh
+alwaysApply: true
+---
+
+# 05 — Upstream evolution
+
+KB-IHMS and EC-OPS **evolve independently** in their own repos. This rule governs how IHMS-OMS stays compatible without pretending upstreams are static.
+
+Read [02-architecture.mdc](02-architecture.mdc) for module boundaries; [03-quality.mdc](03-quality.mdc) for test tiers.
+
+---
+
+## Terminology (do not conflate)
+
+| Term | Meaning |
+|------|---------|
+| **Agent-frozen upstream** | Agents must **not modify assignment code** in KB-IHMS or EC-OPS unless the user explicitly scopes a docs-only or coordinated cross-repo change. |
+| **Evolving upstream API** | KB-IHMS and EC-OPS may ship schema, status-code, auth, or behaviour changes at any time. **Assume drift is normal.** |
+| **Wire contract** | The HTTP JSON shape and semantics the orchestrator gateway expects today — encoded in `src/gateway/`, `tests/contract/`, and `docker/mock-upstreams/`. |
+| **Mock upstream** | In-repo stand-in for CI/demo. Implements **our** wire contract — not a live sync with upstream `main`. |
+
+**"Frozen" in ROADMAP/ADRs means assignment-repo write scope for agents — not that production APIs never change.**
+
+---
+
+## Core principle
+
+```
+Upstream changes  →  adapt at src/gateway/  →  propagate to contract tests + mocks  →  verify with real smoke when possible
+```
+
+- **Never** leak upstream wire types into `saga/`, `checkout/`, `api/`, or `frontend/`.
+- **Never** treat mock E2E green as proof that live KB-IHMS/EC-OPS still match.
+- **Always** update gateway models, contract tests, and mock upstreams **in the same PR** when the wire contract changes.
+
+---
+
+## Two-lane testing strategy
+
+| Lane | Purpose | Runs when | Catches |
+|------|---------|-----------|---------|
+| **Lane 1 — Fast (default CI)** | Orchestrator regression | Every PR: `bash scripts/verify.sh` | Saga bugs, API regressions, compose wiring |
+| **Lane 1b — Mock E2E** | Full HTTP stack over mocks | `STACK=1 bash scripts/verify.sh` / CI `e2e` job | Timeout/reconcile over network, Docker healthchecks |
+| **Lane 2 — Real upstream smoke** | Drift detection | Manual, pre-release, or scheduled workflow | Schema/behaviour changes in live KB-IHMS/EC-OPS |
+
+### Lane 1 artifacts (must stay in sync)
+
+```
+src/gateway/*_models.py + *_client.py
+        ↕ same contract
+tests/contract/test_upstream_contracts.py
+        ↕ same contract
+docker/mock-upstreams/{ihms,ecops}/
+```
+
+If you change one, change all three unless the change is orchestrator-only (e.g. internal timeout).
+
+### Lane 2 — Real upstream smoke
+
+Run the **same E2E scenarios** against published images or staging URLs:
+
+```bash
+IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:<pin> \
+ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:<pin> \
+STACK=1 bash scripts/verify.sh
+```
+
+Or point dev compose at running upstream instances:
+
+```bash
+IHMS_BASE_URL=https://staging-ihms.example ECOPS_BASE_URL=https://staging-ecops.example \
+docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+```
+
+**When to run Lane 2:**
+- Before marking a release / portfolio milestone
+- After upstream announces a breaking or additive API change
+- When investigating production integration failures
+- Periodically (recommended: weekly or on upstream release tags)
+
+Record results in [AI-USAGE.md](../AI-USAGE.md) verification table.
+
+---
+
+## Detecting upstream changes
+
+Agents and humans should monitor:
+
+| Source | Action |
+|--------|--------|
+| KB-IHMS / EC-OPS releases & changelogs | Read before upgrading pinned image tags |
+| Upstream OpenAPI / route definitions | Diff against gateway client payloads |
+| Upstream CI failures on integration smoke | Treat as early drift signal |
+| Production/staging errors (502/409 spikes) | Check gateway mapping and FAILURE-SCENARIOS row |
+
+**Do not wait for mock E2E to fail in CI** — mocks only fail when *we* update the contract locally.
+
+---
+
+## Upgrade workflow (mandatory when upstream API moves)
+
+### 1. Open an issue first
+
+Title convention:
+
+```
+[Upstream] KB-IHMS — <short change summary>
+[Upstream] EC-OPS — <short change summary>
+```
+
+Labels: `integration/oms`, `area/backend`, `blocked` if waiting on upstream clarification.
+
+Body must include:
+- Upstream repo + commit/tag/release compared against
+- Fields/endpoints/status codes that changed
+- Expected orchestrator behaviour after adaptation
+- Test tiers to update (contract, integration, e2e, real smoke)
+
+### 2. Implement in one PR (same branch)
+
+Checklist — **all applicable items in one PR**:
+
+- [ ] `src/gateway/` — models, clients, error mapping
+- [ ] `tests/contract/` — request/response shape assertions
+- [ ] `tests/integration/` — saga flows if semantics changed
+- [ ] `docker/mock-upstreams/` — mirror new wire behaviour
+- [ ] `catalog/products.json` — only if identifier mapping changed
+- [ ] `docs/FAILURE-SCENARIOS.md` + relevant `docs/sequences/` — if error paths changed
+- [ ] `docs/PERFORMANCE.md` — if timeouts/retries change
+- [ ] ADR — if reconciliation, idempotency, or auth strategy changes
+- [ ] [AI-USAGE.md](../AI-USAGE.md) — note upstream version pinned/smoke result
+
+### 3. Verify
+
+```bash
+bash scripts/verify.sh                    # Lane 1
+STACK=1 bash scripts/verify.sh            # Lane 1b (mocks)
+# Lane 2 — document command + outcome even if skipped (explain why)
+```
+
+### 4. Pin image tags
+
+Document pinned upstream versions in the PR body and optionally in compose comments:
+
+```yaml
+# Example: pin for reproducible smoke — update deliberately, not :latest silently
+IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:v1.2.3
+```
+
+Avoid silently floating `:latest` in production-like demos without recording the resolved digest/tag in AI-USAGE.
+
+---
+
+## Gateway adaptation rules
+
+All upstream shape differences are absorbed in `src/gateway/`:
+
+| Change type | Where to adapt |
+|-------------|----------------|
+| Renamed JSON field | `*_models.py` with alias / validator |
+| New required field | `OrderCreate` / `CreateHoldRequest` + catalog if needed |
+| Status code change | `http_utils.py` mapping |
+| New endpoint | New client method — saga calls through checkout only |
+| Auth change | `EcOpsClient` / settings — never in saga |
+| Lost `client_reference` or idempotency | Update reconciliation strategy + ADR-008 note + FAILURE-SCENARIOS |
+
+**Forbidden:** patching saga or routes to parse raw upstream JSON "just this once".
+
+---
+
+## Mock upstreams — purpose and limits
+
+### Purpose
+
+- Stable CI without registry/network dependency on external repos
+- Executable documentation of the wire contract IHMS-OMS implements
+- Scenario injection (`/_test/scenario`) for failure paths
+
+### Limits (state explicitly in PRs when relevant)
+
+- Mocks do **not** subscribe to upstream repos — they drift by omission
+- Mock E2E passing ≠ compatible with live KB-IHMS/EC-OPS
+- Mocks may intentionally simplify (e.g. in-memory state) — behaviour must still match **contract tests**, not every upstream edge case
+
+When adding mock behaviour, ask: *"Would this still be valid if real upstream did X differently?"* If unsure, add a contract test assertion and note Lane 2 smoke requirement in the PR.
+
+---
+
+## Known EC-OPS constraints (living — re-verify on upgrade)
+
+The integration was built against EC-OPS behaviour observed at integration time. **Re-verify on every Lane 2 smoke:**
+
+- `Idempotency-Key` may not be enforced server-side
+- `client_reference` may not be accepted on create — reconciliation may list-all + client-side match
+- Order list filtering may be unavailable
+
+If upstream adds these features, update gateway + reconciliation + ADR-008 in the same upgrade PR. Do not assume frozen behaviour forever.
+
+---
+
+## Issue & PR review gates (upstream-aware)
+
+Reviewers and agents must ask:
+
+1. Did this PR touch `src/gateway/` without updating contract tests?
+2. Did contract tests change without updating mocks?
+3. Does saga logic assume upstream fields not asserted in contract tests?
+4. Was Lane 2 smoke run or explicitly deferred with reason?
+5. Are FAILURE-SCENARIOS rows still accurate?
+
+Block merge on (1) or (2). For (4), deferral is acceptable for trivial doc-only PRs — not for gateway changes.
+
+---
+
+## Anti-patterns
+
+- Treating mock E2E as upstream compatibility proof
+- Updating gateway models without contract tests
+- Updating contract tests without mock upstreams (STACK=1 e2e will lie)
+- Hardcoding upstream URLs or response shapes outside `src/gateway/`
+- Modifying KB-IHMS/EC-OPS code to "fix" orchestrator integration (adapt here instead)
+- Blind `:latest` pulls in production demos without recording version
+- Adding orchestrator workarounds in UI for upstream schema issues
+
+---
+
+## Agent pre-flight (gateway or mock changes)
+
+Before committing:
+
+1. Identify whether change is **orchestrator-only** or **wire-contract** change
+2. If wire-contract: update gateway + contract + mocks together
+3. Run `bash scripts/verify.sh`; run `STACK=1` when mocks or compose touched
+4. Note upstream pin/smoke status in AI-USAGE
+5. Link `[Upstream]` issue or explain why not needed (orchestrator-internal refactor)
+
+---
+
+## Related rules
+
+- Agent write scope / issues: [01-workflow.mdc](01-workflow.mdc)
+- Gateway boundary: [02-architecture.mdc](02-architecture.mdc)
+- Test pyramid & e2e: [03-quality.mdc](03-quality.mdc)
+- Doc triggers: [04-documentation.mdc](04-documentation.mdc)
