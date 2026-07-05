@@ -30,8 +30,6 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Consolidated PR #15 | passed | Supersedes #13 (frontend idempotency) + #16 (upstream rules); e2e reconcile fix |
 | 2026-07-05 | Bug-finding automation — reconciliation/correlation fixes | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 15 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
-
-| 2026-07-05 | Bug-finding automation — unknown order retry guard | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 16 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — Phase 6 observability | passed | verify.sh 26 unit + 20 integration; JSON logs, /metrics, saga step logging |
 | 2026-07-05 | Cloud Agent — Phase 7 real upstream Docker | passed | verify.sh 60 tests; deploy-stack.sh; Lane 2 smoke deferred (no sibling repos in CI) |
 | 2026-07-05 | Bug-finding automation — upstream stack data preservation | passed | `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
@@ -39,8 +37,22 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
 | 2026-07-05 | Bug-finding automation — E2E port defaults | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -v --tb=short` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Cloud Agent — PR #34 consolidated checkout | passed | `bash scripts/verify.sh` (47 unit, 24 integration); `cd frontend && npm test && npm run build` (17 Vitest); CI e2e green; supersedes PRs #31–#35 |
 
 ## Session log
+
+### 2026-07-05 — Consolidated live inventory + multi-item cart (PR #34)
+
+**Scope:** Merge live-inventory checkout, automation bug fixes (#32–#35), and multi-item cart into one branch (`cursor/multi-item-cart-bf51`, v0.9.1).
+
+**Included fixes:**
+- `FULFILL_PENDING` saga state when order succeeds but IHMS fulfill fails (supersedes PR #32 HELD+503 approach)
+- Cart quantity submitted on checkout click before blur (PR #33)
+- Unknown-stock degraded mode: allow add/checkout when catalog `available_quantity` is null (PR #35)
+- Multi-item hold API `{ items: [{ sku, quantity }] }` with atomic IHMS hold
+- Cart edge cases: addToCart cap, OOS sync, dirty quantity inputs
+
+**Verification:** 47 unit + 24 integration + 17 frontend tests; GitHub Actions e2e/verify/frontend green on PR #34.
 
 ### 2026-07-05 — E2E stack port default bug fix
 
