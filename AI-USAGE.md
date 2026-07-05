@@ -37,18 +37,20 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 
 ## Session log
 
-### 2026-07-05 — Real upstream Docker deployment (v0.7.0)
+### 2026-07-05 — Simplified Docker deploy (v0.7.0)
 
-**User query:** Add Docker implementation; KB-IHMS and EC-OPS already deployed in Docker.
+**User query:** Simplify Docker; check other repos.
+
+**Findings:**
+- KB-IHMS: official `docker-compose.yml` — API `:5000`, frontend `:5173`
+- EC-OPS: no docker-compose — runs on host `:8002` with PostgreSQL
 
 **Actions:**
-- `docker/compose.upstream.yml` — orchestrator + UI wired to host upstreams via `host.docker.internal`
-- `docker/compose.bundle.yml` — bundled KB-IHMS + EC-OPS + orchestrator on shared network
-- `docker/upstream/ecops/Dockerfile` — build EC-OPS from sibling path without modifying assignment repo
-- `scripts/upstream-stack.sh`, `scripts/ecops-token.sh`, `.env.example`, `docs/DOCKER.md`
-- EC-OPS JWT via `ECOPS_BEARER_TOKEN`; checkout UI on port 5180 (avoids KB-IHMS frontend 5173)
+- Removed duplicate `compose.upstream.yml`, `compose.bundle.yml`, custom EC-OPS Dockerfile
+- Single deploy stack: `compose.dev.yml` + `scripts/deploy-stack.sh`
+- Docs trimmed to three-repo workflow (use upstream docker as-is)
 
-### 2026-07-05 — Phase 6 observability + testing (v0.6.0)
+### 2026-07-05 — Real upstream Docker deployment (v0.7.0)
 
 **User query:** Add observability and testing to roadmap and implement.
 

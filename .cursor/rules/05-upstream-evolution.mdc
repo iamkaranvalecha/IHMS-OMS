@@ -5,10 +5,9 @@ globs:
   - tests/contract/**
   - docker/mock-upstreams/**
   - docker/compose.full.yml
-  - docker/compose.upstream.yml
-  - docker/compose.bundle.yml
+  - docker/compose.dev.yml
   - scripts/e2e-stack.sh
-  - scripts/upstream-stack.sh
+  - scripts/deploy-stack.sh
 alwaysApply: true
 ---
 
@@ -80,16 +79,7 @@ Or point dev compose at running upstream instances:
 ```bash
 cp .env.example .env
 bash scripts/ecops-token.sh
-bash scripts/upstream-stack.sh up
-# or bundle siblings: bash scripts/upstream-stack.sh up --bundle
-```
-
-Or environment-only dev orchestrator:
-
-```bash
-IHMS_BASE_URL=https://staging-ihms.example ECOPS_BASE_URL=https://staging-ecops.example \
-ECOPS_BEARER_TOKEN=<jwt> \
-docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+bash scripts/deploy-stack.sh up
 ```
 
 **When to run Lane 2:**
