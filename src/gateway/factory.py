@@ -29,6 +29,10 @@ async def gateway_clients(settings: Settings) -> AsyncIterator[tuple[IhmsClient,
         httpx.AsyncClient(timeout=ihms_timeout) as ihms_http,
         httpx.AsyncClient(timeout=ecops_timeout) as ecops_http,
     ):
-        ihms = IhmsClient(ihms_http, settings.ihms_base_url)
+        ihms = IhmsClient(
+            ihms_http,
+            settings.ihms_base_url,
+            fulfill_optional=settings.ihms_fulfill_optional,
+        )
         ecops = EcOpsClient(ecops_http, settings.ecops_base_url, settings.ecops_bearer_token)
         yield ihms, ecops

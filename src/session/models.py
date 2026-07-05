@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class SessionState(StrEnum):
     CREATED = "CREATED"
     HELD = "HELD"
+    FULFILL_PENDING = "FULFILL_PENDING"
     CONFIRMED = "CONFIRMED"
     ABANDONED = "ABANDONED"
     COMPENSATED = "COMPENSATED"

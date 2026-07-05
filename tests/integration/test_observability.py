@@ -52,6 +52,12 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold())
     )
+    respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"productId": "prod-widget-001", "availableQuantity": 100}],
+        )
+    )
     await client.post(
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Obs Customer"},
@@ -107,6 +113,12 @@ async def test_saga_emits_structured_log_steps(
 
     respx.post("http://ihms.test/api/holds").mock(
         return_value=httpx.Response(201, json=_ihms_hold("hold-log"))
+    )
+    respx.get("http://ihms.test/api/inventory").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"productId": "prod-widget-001", "availableQuantity": 100}],
+        )
     )
     await client.post(
         f"/sessions/{session_id}/hold",

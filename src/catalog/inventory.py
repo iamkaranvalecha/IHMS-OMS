@@ -70,3 +70,47 @@ async def list_catalog_with_inventory(
         )
         for product in catalog.list_products()
     ]
+
+
+async def get_product_with_inventory(
+    catalog: CatalogProvider,
+    ihms: IhmsClient,
+    sku: str,
+    headers: ObservabilityHeaders,
+    *,
+    allow_degraded: bool = True,
+) -> CatalogProductWithAvailability | None:
+    """Return one catalog row enriched with IHMS stock for a SKU."""
+    product = catalog.get_product(sku)
+    if product is None:
+        return None
+    try:
+        inventory_items = await ihms.get_inventory(headers)
+    except GatewayError:
+        if not allow_degraded:
+            raise
+        logger.warning("IHMS inventory unavailable for sku=%s", sku)
+        return CatalogProductWithAvailability(
+            sku=product.sku,
+            name=product.name,
+            ihms_product_id=product.ihms_product_id,
+            ecops_item_code=product.ecops_item_code,
+            unit_price=product.unit_price,
+            available_quantity=None,
+        )
+    available = next(
+        (
+            item.available_quantity
+            for item in inventory_items
+            if item.product_id == product.ihms_product_id
+        ),
+        0,
+    )
+    return CatalogProductWithAvailability(
+        sku=product.sku,
+        name=product.name,
+        ihms_product_id=product.ihms_product_id,
+        ecops_item_code=product.ecops_item_code,
+        unit_price=product.unit_price,
+        available_quantity=available,
+    )

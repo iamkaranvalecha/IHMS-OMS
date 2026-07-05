@@ -8,7 +8,7 @@ from uuid import UUID
 
 from src.catalog.provider import CatalogProvider
 from src.gateway.ecops_client import EcOpsClient
-from src.gateway.ecops_models import OrderCreate, OrderItemCreate, OrderResponse
+from src.gateway.ecops_models import OrderCreate, OrderItemCreate, OrderResponse, OrderStatus
 from src.gateway.exceptions import (
     GatewayError,
     GatewayTimeoutError,
@@ -31,6 +31,7 @@ from src.observability.saga_events import (
 from src.saga.exceptions import (
     CompensationIncompleteError,
     HoldExpiredError,
+    InsufficientStockError,
     InvalidStateTransitionError,
     OrderStatusUnknownError,
     ProductNotFoundError,
@@ -104,6 +105,8 @@ class SagaCoordinator:
                     f"Cannot place hold from state {session.state.value}",
                 )
 
+            await self._assert_sufficient_stock(line_item.ihms_product_id, quantity, headers)
+
             try:
                 hold = await self.ihms.create_hold(hold_items, headers)
             except (HoldConflictError, UpstreamError):
@@ -153,10 +156,20 @@ class SagaCoordinator:
                 updates: dict[str, object] = {}
                 if cached.order_id:
                     updates["order_id"] = cached.order_id
-                if cached_state and session.state == SessionState.HELD:
+                if cached_state and session.state in (
+                    SessionState.HELD,
+                    SessionState.FULFILL_PENDING,
+                ):
                     updates["state"] = SessionState(str(cached_state))
                 if updates:
                     session = self.sessions.save(session.model_copy(update=updates))
+                if session.state == SessionState.FULFILL_PENDING:
+                    return await self._retry_fulfill_pending_locked(
+                        session,
+                        idempotency_key,
+                        headers,
+                        from_cache=True,
+                    )
                 if session.hold_id and session.is_terminal():
                     await fulfill_hold_safe(self.ihms, session.hold_id, headers)
                 log_saga_step(
@@ -171,6 +184,17 @@ class SagaCoordinator:
             session = self.sessions.get(session_id)
             if session is None:
                 raise SessionNotFoundError("Session not found")
+            if session.state == SessionState.FULFILL_PENDING:
+                if session.idempotency_key != idempotency_key:
+                    raise InvalidStateTransitionError(
+                        "Retry fulfill with the original Idempotency-Key",
+                        detail="Order was placed but hold finalization is pending",
+                    )
+                return await self._retry_fulfill_pending_locked(
+                    session,
+                    idempotency_key,
+                    headers,
+                )
             if session.state != SessionState.HELD:
                 raise InvalidStateTransitionError(
                     f"Cannot confirm from state {session.state.value}",
@@ -213,25 +237,13 @@ class SagaCoordinator:
                         idempotency_key=idempotency_key,
                         client_reference=session.correlation_id,
                     )
-                if session.hold_id:
-                    await fulfill_hold_safe(self.ihms, session.hold_id, headers)
-                terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
-                result = self._finalize_success_locked(
+                return await self._complete_order_after_create_locked(
                     session,
                     order,
                     idempotency_key,
-                    terminal,
+                    headers,
+                    reconciled=reconciled,
                 )
-                record_confirm_success(reconciled=reconciled)
-                log_saga_step(
-                    "reconcile" if reconciled else "confirm",
-                    "checkout confirmed",
-                    session_id=session_id,
-                    hold_id=result.session.hold_id,
-                    order_id=result.session.order_id,
-                    outcome=terminal.value.lower(),
-                )
-                return result
             except UpstreamError:
                 await self._compensate_and_fail_locked(session, headers)
                 raise
@@ -268,6 +280,11 @@ class SagaCoordinator:
             if session.is_terminal():
                 raise InvalidStateTransitionError(
                     f"Cannot abandon from terminal state {session.state.value}",
+                )
+            if session.state == SessionState.FULFILL_PENDING:
+                raise InvalidStateTransitionError(
+                    "Cannot abandon while order is placed and hold fulfill is pending",
+                    detail="Retry confirm with the same Idempotency-Key to finalize the hold",
                 )
 
             if session.state == SessionState.HELD and session.hold_id:
@@ -320,7 +337,7 @@ class SagaCoordinator:
         terminal_state: SessionState,
     ) -> ConfirmResult:
         order_id = str(order.id)
-        if session.state != SessionState.HELD:
+        if session.state not in (SessionState.HELD, SessionState.FULFILL_PENDING):
             raise InvalidStateTransitionError(
                 f"Cannot finalize confirm from state {session.state.value}",
             )
@@ -363,19 +380,157 @@ class SagaCoordinator:
                 detail="Order status is unknown; hold was not released",
             ) from exc
         if order is not None:
-            if session.hold_id:
-                await fulfill_hold_safe(self.ihms, session.hold_id, headers)
-            return self._finalize_success_locked(
+            return await self._complete_order_after_create_locked(
                 session,
                 order,
                 idempotency_key,
-                SessionState.RECONCILED,
+                headers,
+                reconciled=True,
             )
 
-        await self._compensate_and_fail_locked(session, headers)
-        raise CompensationIncompleteError(
-            "Previous order attempt was not found; hold release attempted",
+        raise OrderStatusUnknownError(
+            "Previous order attempt was not found; hold retained",
+            detail="Order status is unknown; hold was not released",
         )
+
+    async def _complete_order_after_create_locked(
+        self,
+        session: CheckoutSession,
+        order: OrderResponse,
+        idempotency_key: str,
+        headers: ObservabilityHeaders,
+        *,
+        reconciled: bool,
+    ) -> ConfirmResult:
+        order_id = str(order.id)
+        fulfilled = True
+        if session.hold_id:
+            fulfilled = await fulfill_hold_safe(self.ihms, session.hold_id, headers)
+
+        if not fulfilled:
+            pending = self.sessions.save(
+                session.model_copy(
+                    update={
+                        "state": SessionState.FULFILL_PENDING,
+                        "order_id": order_id,
+                        "idempotency_key": idempotency_key,
+                    }
+                )
+            )
+            self._cache_confirm_response(pending, idempotency_key, SessionState.FULFILL_PENDING)
+            log_saga_step(
+                "confirm",
+                "order placed; hold fulfill pending",
+                level=logging.WARNING,
+                session_id=pending.session_id,
+                hold_id=pending.hold_id,
+                order_id=order_id,
+                outcome="fulfill_pending",
+            )
+            return ConfirmResult(session=pending)
+
+        terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
+        result = self._finalize_success_locked(session, order, idempotency_key, terminal)
+        record_confirm_success(reconciled=reconciled)
+        log_saga_step(
+            "reconcile" if reconciled else "confirm",
+            "checkout confirmed",
+            session_id=session.session_id,
+            hold_id=result.session.hold_id,
+            order_id=result.session.order_id,
+            outcome=terminal.value.lower(),
+        )
+        return result
+
+    async def _retry_fulfill_pending_locked(
+        self,
+        session: CheckoutSession,
+        idempotency_key: str,
+        headers: ObservabilityHeaders,
+        *,
+        from_cache: bool = False,
+    ) -> ConfirmResult:
+        if not session.hold_id or not session.order_id:
+            raise InvalidStateTransitionError(
+                "Fulfill pending session is missing hold or order identifiers",
+            )
+        fulfilled = await fulfill_hold_safe(self.ihms, session.hold_id, headers)
+        if not fulfilled:
+            log_saga_step(
+                "confirm",
+                "hold fulfill still pending",
+                level=logging.WARNING,
+                session_id=session.session_id,
+                hold_id=session.hold_id,
+                order_id=session.order_id,
+                outcome="fulfill_pending",
+            )
+            return ConfirmResult(session=session, from_cache=from_cache)
+
+        order = OrderResponse(
+            id=UUID(session.order_id),
+            customer_name=session.customer_name or "",
+            status=OrderStatus.PENDING,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            items=[],
+        )
+        result = self._finalize_success_locked(
+            session,
+            order,
+            idempotency_key,
+            SessionState.CONFIRMED,
+        )
+        record_confirm_success(reconciled=False)
+        log_saga_step(
+            "confirm",
+            "hold fulfill completed after pending",
+            session_id=session.session_id,
+            hold_id=result.session.hold_id,
+            order_id=result.session.order_id,
+            outcome="confirmed",
+        )
+        return ConfirmResult(session=result.session, from_cache=from_cache)
+
+    def _cache_confirm_response(
+        self,
+        session: CheckoutSession,
+        idempotency_key: str,
+        state: SessionState,
+    ) -> None:
+        body: dict[str, object] = {
+            "session_id": str(session.session_id),
+            "correlation_id": session.correlation_id,
+            "state": state.value,
+            "hold_id": session.hold_id,
+            "order_id": session.order_id,
+            "expires_at": session.expires_at.isoformat() if session.expires_at else None,
+        }
+        self.idempotency.put(
+            session.session_id,
+            idempotency_key,
+            IdempotencyRecord(status_code=200, body=body, order_id=session.order_id),
+        )
+
+    async def _assert_sufficient_stock(
+        self,
+        ihms_product_id: str,
+        quantity: int,
+        headers: ObservabilityHeaders,
+    ) -> None:
+        try:
+            inventory = await self.ihms.get_inventory(headers)
+        except GatewayError:
+            return
+        available = next(
+            (item.available_quantity for item in inventory if item.product_id == ihms_product_id),
+            0,
+        )
+        if quantity > available:
+            raise InsufficientStockError(
+                f"Only {available} units available",
+                detail=f"Requested {quantity}, available {available}",
+            )
 
     async def _compensate_and_fail_locked(
         self,

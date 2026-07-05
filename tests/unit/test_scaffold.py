@@ -7,7 +7,7 @@ from src.catalog import JsonCatalogProvider
 
 
 def test_version_is_set() -> None:
-    assert __version__ == "0.8.1"
+    assert __version__ == "0.8.2"
 
 
 def test_catalog_loads_products() -> None:

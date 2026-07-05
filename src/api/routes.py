@@ -100,12 +100,11 @@ async def get_catalog_product(
     if product is None:
         raise HTTPException(status_code=404, detail=f"Product {sku} not found")
     try:
-        enriched = await checkout.list_catalog_with_inventory(headers)
+        enriched = await checkout.get_product_with_inventory(sku, headers)
     except Exception as exc:
         raise http_exception_for_error(exc) from exc
-    match = next((item for item in enriched if item.sku == sku), None)
-    if match is not None:
-        return CatalogProductOut.from_enriched(match)
+    if enriched is not None:
+        return CatalogProductOut.from_enriched(enriched)
     return CatalogProductOut.from_catalog(product)
 
 

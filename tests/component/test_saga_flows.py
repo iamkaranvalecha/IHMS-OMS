@@ -11,7 +11,12 @@ from src.catalog.provider import JsonCatalogProvider
 from src.checkout.service import CheckoutService
 from src.gateway.ecops_models import OrderResponse, OrderStatus
 from src.gateway.exceptions import UpstreamError, UpstreamProblem
-from src.gateway.ihms_models import HoldItemResponse, HoldResponse, HoldStatus
+from src.gateway.ihms_models import (
+    HoldItemResponse,
+    HoldResponse,
+    HoldStatus,
+    InventoryItemResponse,
+)
 from src.session.models import SessionState
 from src.session.store import InMemorySessionStore
 
@@ -27,6 +32,11 @@ def checkout(catalog: JsonCatalogProvider) -> CheckoutService:
     ihms = MagicMock()
     ihms.create_hold = AsyncMock()
     ihms.get_hold = AsyncMock()
+    ihms.get_inventory = AsyncMock(
+        return_value=[
+            InventoryItemResponse(product_id="prod-widget-001", available_quantity=100),
+        ]
+    )
     ihms.release_hold = AsyncMock()
     ihms.fulfill_hold = AsyncMock()
     ecops = MagicMock()

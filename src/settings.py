@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     ihms_connect_timeout: float = 2.0
     ihms_read_timeout: float = 5.0
+    ihms_fulfill_optional: bool = True
     ecops_connect_timeout: float = 2.0
     ecops_read_timeout: float = 10.0
 

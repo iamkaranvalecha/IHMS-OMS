@@ -94,7 +94,7 @@ export function CartPanel({
       <button
         type="button"
         className="primary"
-        disabled={disabled || checkoutPending || !customerName.trim()}
+        disabled={disabled || checkoutPending || !customerName.trim() || cart.stockUnknown}
         onClick={() => {
           commitQuantity();
           onCheckout();

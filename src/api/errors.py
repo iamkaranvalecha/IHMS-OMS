@@ -13,6 +13,7 @@ from src.gateway.exceptions import (
 from src.saga.exceptions import (
     CompensationIncompleteError,
     HoldExpiredError,
+    InsufficientStockError,
     InvalidStateTransitionError,
     ProductNotFoundError,
     SagaError,
@@ -27,6 +28,8 @@ def http_exception_for_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ProductNotFoundError):
         return HTTPException(status_code=404, detail=exc.detail)
     if isinstance(exc, HoldExpiredError):
+        return HTTPException(status_code=409, detail=exc.detail)
+    if isinstance(exc, InsufficientStockError):
         return HTTPException(status_code=409, detail=exc.detail)
     if isinstance(exc, InvalidStateTransitionError):
         return HTTPException(status_code=409, detail=exc.detail)

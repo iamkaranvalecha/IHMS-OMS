@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from src.catalog.inventory import list_catalog_with_inventory
+from src.catalog.inventory import get_product_with_inventory, list_catalog_with_inventory
 from src.catalog.provider import JsonCatalogProvider
 from src.gateway.exceptions import GatewayTimeoutError
 from src.gateway.headers import ObservabilityHeaders
@@ -74,3 +74,21 @@ async def test_list_catalog_with_inventory_degrades_when_ihms_unavailable(
 
     assert len(products) == 1
     assert products[0].available_quantity is None
+
+
+@pytest.mark.asyncio
+async def test_get_product_with_inventory_returns_single_sku(
+    catalog: JsonCatalogProvider,
+) -> None:
+    ihms = MagicMock()
+    ihms.get_inventory = AsyncMock(
+        return_value=[
+            InventoryItemResponse(product_id="prod-widget-001", available_quantity=3),
+        ]
+    )
+
+    product = await get_product_with_inventory(catalog, ihms, "WIDGET-001", OBS)
+
+    assert product is not None
+    assert product.available_quantity == 3
+    ihms.get_inventory.assert_awaited_once_with(OBS)

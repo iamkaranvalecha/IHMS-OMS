@@ -61,6 +61,10 @@ function isTerminalState(state: string): boolean {
   return ["CONFIRMED", "RECONCILED", "ABANDONED", "COMPENSATED"].includes(state);
 }
 
+function isActiveCheckout(state: string): boolean {
+  return state === "HELD" || state === "FULFILL_PENDING";
+}
+
 export function App() {
   const storedActiveCheckout = useMemo(() => readStoredActiveCheckout(), []);
   const [cart, setCart] = useState<CartItem | null>(null);
@@ -77,11 +81,11 @@ export function App() {
   const sessionQuery = useSession(sessionId);
   const session = sessionQuery.data?.data ?? null;
   const catalogQuery = useCatalog({
-    refetchInterval: session?.state === "HELD" ? 2000 : false,
+    refetchInterval: isActiveCheckout(session?.state ?? "") ? 2000 : false,
   });
   const { startCheckout, confirmCheckout, abandonCheckout } = useCheckoutMutations(setObservability);
 
-  const checkoutActive = Boolean(session && !isTerminalState(session.state));
+  const checkoutActive = Boolean(session && isActiveCheckout(session.state));
 
   const products = useMemo(() => catalogQuery.data?.data ?? [], [catalogQuery.data]);
 
@@ -92,28 +96,35 @@ export function App() {
   }, [session]);
 
   useEffect(() => {
-    if (!cart) {
+    const sku = cart?.sku;
+    if (!sku) {
       return;
     }
-    const product = products.find((item) => item.sku === cart.sku);
+    const product = products.find((item) => item.sku === sku);
     if (!product) {
       return;
     }
-    const stockUnknown = product.availableQuantity === null;
-    const maxQuantity =
-      product.availableQuantity === null
-        ? cart.maxQuantity
-        : Math.max(product.availableQuantity, 0);
-    const quantity =
-      maxQuantity > 0 ? Math.min(cart.quantity, maxQuantity) : cart.quantity;
-    if (
-      cart.maxQuantity !== maxQuantity ||
-      cart.quantity !== quantity ||
-      cart.stockUnknown !== stockUnknown
-    ) {
-      setCart({ ...cart, maxQuantity, quantity, stockUnknown });
-    }
-  }, [products, cart]);
+    setCart((current) => {
+      if (!current || current.sku !== sku) {
+        return current;
+      }
+      const stockUnknown = product.availableQuantity === null;
+      const maxQuantity =
+        product.availableQuantity === null
+          ? current.maxQuantity
+          : Math.max(product.availableQuantity, 0);
+      const quantity =
+        maxQuantity > 0 ? Math.min(current.quantity, maxQuantity) : current.quantity;
+      if (
+        current.maxQuantity === maxQuantity &&
+        current.quantity === quantity &&
+        current.stockUnknown === stockUnknown
+      ) {
+        return current;
+      }
+      return { ...current, maxQuantity, quantity, stockUnknown };
+    });
+  }, [products, cart?.sku]);
 
   const handleStartCheckout = async () => {
     if (!cart) {
@@ -127,6 +138,9 @@ export function App() {
       writeStoredActiveCheckout(result.data.sessionId, confirmIdempotencyKey);
       setSessionId(result.data.sessionId);
     } catch (err) {
+      if (isApiError(err) && err.status === 409) {
+        void catalogQuery.refetch();
+      }
       setError(isApiError(err) ? err.detail : "Checkout failed");
     }
   };

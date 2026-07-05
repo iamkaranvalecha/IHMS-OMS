@@ -38,7 +38,7 @@ export function useSession(sessionId: string | null, enabled = true) {
     enabled: Boolean(sessionId) && enabled,
     refetchInterval: (query) => {
       const state = query.state.data?.data.state;
-      return state === "HELD" ? 2000 : false;
+      return state === "HELD" || state === "FULFILL_PENDING" ? 2000 : false;
     },
   });
 }

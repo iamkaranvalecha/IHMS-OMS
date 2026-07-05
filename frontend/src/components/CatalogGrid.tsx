@@ -10,15 +10,6 @@ interface CatalogGridProps {
   disabled?: boolean;
 }
 
-const UNKNOWN_STOCK_CAP = 99;
-
-function maxPurchasable(product: CatalogProduct): number {
-  if (product.availableQuantity === null) {
-    return UNKNOWN_STOCK_CAP;
-  }
-  return Math.max(product.availableQuantity, 0);
-}
-
 export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProps) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
 
@@ -30,7 +21,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
           const inCart = cart?.sku === product.sku;
           const stockUnknown = product.availableQuantity === null;
           const outOfStock = !stockUnknown && product.availableQuantity <= 0;
-          const maxQty = maxPurchasable(product);
+          const maxQty = stockUnknown ? 0 : Math.max(product.availableQuantity, 0);
           const selectedQty = quantities[product.sku] ?? 1;
           return (
             <li key={product.sku} className="catalog-card">
@@ -44,7 +35,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                     ? "Out of stock"
                     : `${product.availableQuantity} in stock`}
               </p>
-              {!outOfStock && (
+              {!outOfStock && !stockUnknown && (
                 <label className="field quantity-field">
                   <span>Quantity</span>
                   <input
@@ -68,7 +59,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
               )}
               <button
                 type="button"
-                disabled={disabled || inCart || outOfStock}
+                disabled={disabled || inCart || outOfStock || stockUnknown}
                 onClick={() => {
                   const quantity = Math.min(Math.max(selectedQty, 1), maxQty);
                   onAdd({
@@ -81,7 +72,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                   });
                 }}
               >
-                {inCart ? "In cart" : outOfStock ? "Unavailable" : "Add to cart"}
+                {inCart ? "In cart" : outOfStock ? "Unavailable" : stockUnknown ? "Stock unknown" : "Add to cart"}
               </button>
             </li>
           );

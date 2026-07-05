@@ -37,6 +37,7 @@ interface WireSession {
 const SESSION_STATES: SessionState[] = [
   "CREATED",
   "HELD",
+  "FULFILL_PENDING",
   "CONFIRMED",
   "ABANDONED",
   "COMPENSATED",

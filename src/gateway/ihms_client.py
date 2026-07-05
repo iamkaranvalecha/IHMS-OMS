@@ -15,9 +15,16 @@ from src.gateway.ihms_models import (
 class IhmsClient:
     """Async client for KB-IHMS hold endpoints."""
 
-    def __init__(self, client: httpx.AsyncClient, base_url: str) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        *,
+        fulfill_optional: bool = True,
+    ) -> None:
         self._client = client
         self._base_url = base_url.rstrip("/")
+        self._fulfill_optional = fulfill_optional
 
     async def create_hold(
         self,
@@ -81,6 +88,7 @@ class IhmsClient:
         except httpx.HTTPError as exc:
             raise map_transport_error(exc) from exc
         if response.status_code == 404:
-            # Real KB-IHMS may not expose fulfill; hold-time deduction already consumed stock.
-            return
+            if self._fulfill_optional:
+                return
+            raise_for_ihms_response(response)
         raise_for_ihms_response(response)

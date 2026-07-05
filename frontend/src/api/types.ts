@@ -3,6 +3,7 @@
 export type SessionState =
   | "CREATED"
   | "HELD"
+  | "FULFILL_PENDING"
   | "CONFIRMED"
   | "ABANDONED"
   | "COMPENSATED"
