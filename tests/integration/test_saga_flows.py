@@ -289,7 +289,7 @@ async def test_reconcile_after_order_timeout(client: AsyncClient) -> None:
     assert confirm.json()["order_id"] == order_id
 
 
-@respx.mock(assert_all_called=False)
+@respx.mock
 async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
     session_id = create.json()["session_id"]
@@ -311,10 +311,6 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
     respx.get("http://ecops.test/orders").mock(
         return_value=httpx.Response(503, json={"detail": "Order list unavailable"})
     )
-    release = respx.delete("http://ihms.test/api/holds/hold-reconcile-error").mock(
-        return_value=httpx.Response(204)
-    )
-
     confirm = await client.post(
         f"/sessions/{session_id}/confirm",
         json={},
@@ -322,7 +318,6 @@ async def test_reconcile_lookup_failure_retains_hold(client: AsyncClient) -> Non
     )
 
     assert confirm.status_code == 503, confirm.json()
-    assert not release.called
     get_resp = await client.get(f"/sessions/{session_id}")
     body = get_resp.json()
     assert body["state"] == "HELD"
