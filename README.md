@@ -8,7 +8,27 @@
 | [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) | FastAPI order management system (frozen) |
 | **IHMS-OMS** (this repo) | BFF, saga, CatalogProvider, UI, ADRs, observability |
 
-## Quick start
+## Quick start (Docker)
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+| Service | URL |
+|---------|-----|
+| Checkout UI | http://localhost:5173 |
+| Orchestrator | http://localhost:8000 |
+| Swagger / metrics | http://localhost:8000/docs · http://localhost:8000/metrics |
+
+Stop: `docker compose down`
+
+Prometheus: `docker compose --profile obs up --build` → http://localhost:9090
+
+The default stack uses **wire-compatible mock upstreams** (`docker/mock-upstreams/`) so CI and local demos need no sibling repos. To point at real [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) + [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS), see [docs/DOCKER.md](docs/DOCKER.md).
+
+### Local dev (no Docker)
 
 ```bash
 pip install -e ".[dev]"
@@ -17,7 +37,7 @@ uvicorn src.main:app --reload --port 8000
 curl http://localhost:8000/health
 ```
 
-### React UI
+### React UI (dev server)
 
 ```bash
 uvicorn src.main:app --reload --port 8000   # terminal 1
@@ -26,38 +46,11 @@ cd frontend && cp .env.example .env && npm install && npm run dev   # terminal 2
 
 Open http://localhost:5173
 
-### Full stack (E2E demo — mock upstreams, CI default)
+### E2E tests
 
 ```bash
-bash scripts/e2e-stack.sh up
-# orchestrator http://localhost:8000  |  UI http://localhost:5173
-curl http://localhost:8000/metrics   # Prometheus counters
-STACK=1 bash scripts/verify.sh        # runs unit + integration + e2e
-bash scripts/e2e-stack.sh down
+STACK=1 bash scripts/verify.sh
 ```
-
-### Deploy (real upstreams on host)
-
-Start [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) (`docker compose up`) and [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) (`:8002`) first, then:
-
-```bash
-cp .env.example .env
-bash scripts/ecops-token.sh
-bash scripts/deploy-stack.sh up    # UI http://localhost:5180
-bash scripts/deploy-stack.sh down
-```
-
-See [docs/DOCKER.md](docs/DOCKER.md) for the full three-repo layout.
-
-**Observability stack** (Prometheus scrapes `/metrics`):
-
-```bash
-bash scripts/obs-stack.sh up
-# Prometheus UI http://localhost:9090
-bash scripts/obs-stack.sh down
-```
-
-Mock E2E uses **wire-compatible upstreams** in `docker/mock-upstreams/` (CI default). Deploy against real services with `bash scripts/deploy-stack.sh up` — [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Architecture snapshot
 
@@ -100,13 +93,13 @@ Key API routes:
 
 ## Docker
 
-| Stack | Command |
-|-------|---------|
-| **Deploy** (KB-IHMS + EC-OPS on host) | `bash scripts/deploy-stack.sh up` |
-| Mock E2E (CI) | `bash scripts/e2e-stack.sh up` |
-| Mock + Prometheus | `bash scripts/obs-stack.sh up` |
+```bash
+docker compose up --build          # full stack
+docker compose --profile obs up    # + Prometheus
+docker compose down
+```
 
-Full guide: [docs/DOCKER.md](docs/DOCKER.md). Orchestrator containers default to `LOG_JSON=true`. UI nginx proxies `/health` and `/metrics`.
+E2E/CI uses `scripts/e2e-stack.sh` (wraps the same compose file). Details: [docs/DOCKER.md](docs/DOCKER.md).
 
 ## Project tracking
 
@@ -115,4 +108,4 @@ Full guide: [docs/DOCKER.md](docs/DOCKER.md). Orchestrator containers default to
 
 ## Status
 
-**Phase 7 (v0.7.0)** — deploy stack wired to KB-IHMS docker + EC-OPS on host. See [ROADMAP.md](ROADMAP.md).
+**v0.7.1** — single `docker-compose.yml` (KB-IHMS pattern). See [ROADMAP.md](ROADMAP.md).

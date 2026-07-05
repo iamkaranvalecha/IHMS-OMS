@@ -235,9 +235,9 @@ From KB-IHMS `frontend.mdc`, adapted for orchestrator UI (Phase 4):
 Do not create a monolithic `docker-compose.yml`. Use layered files:
 
 ```
-docker/compose.base.yml   # networks, anchors
-docker/compose.dev.yml    # orchestrator + optional UI
-docker/compose.full.yml   # + mock or real upstreams for E2E (see 05-upstream-evolution)
+docker-compose.yml      # full stack (mock upstreams + orchestrator + UI)
+docker/Dockerfile.orchestrator
+docker/mock-upstreams/  # wire-compatible IHMS/EC-OPS stand-ins
 docker/mock-upstreams/    # wire-compatible mocks — must match contract tests
 ```
 

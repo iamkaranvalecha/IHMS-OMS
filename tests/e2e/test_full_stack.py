@@ -1,4 +1,4 @@
-"""End-to-end tests — require compose.full.yml stack (STACK=1)."""
+"""End-to-end tests — require docker-compose.yml stack (STACK=1)."""
 
 from __future__ import annotations
 

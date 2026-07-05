@@ -6,9 +6,9 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ---
 
-## Current phase: Phase 7 — Real upstream Docker (2026-07-05)
+## Current phase: Complete — single docker-compose.yml (2026-07-05)
 
-**Goal:** Docker deployment wired to live KB-IHMS + EC-OPS (external + bundled compose, Lane 2 scripts).
+**Goal achieved:** One-file Docker stack matching KB-IHMS pattern (`docker compose up --build`).
 
 ---
 
@@ -21,25 +21,15 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 | Phase 2 | 2026-07-04 | IhmsClient, EcOpsClient, session store, catalog API, 18 tests |
 | Phase 3 | 2026-07-04 | Saga coordinator, hold/confirm/cancel, compensation, idempotency, reconciliation |
 | Phase 4 | 2026-07-04 | React UI — catalog, cart, countdown, confirm/abandon, dev panel, Vitest |
-| Phase 5 | 2026-07-05 | Mock upstreams, compose.full.yml, E2E suite, CI e2e job |
+| Phase 5 | 2026-07-05 | Mock upstreams, E2E suite, CI e2e job |
 | Phase 6 | 2026-07-05 | JSON logs, saga metrics, `/metrics`, observability tests |
-
-### Phase 6 deliverables
-
-- [x] JSON structured logs (`src/observability/logging.py`)
-- [x] Request context binding in middleware
-- [x] Saga step logs + Prometheus counters
-- [x] `GET /metrics` endpoint
-- [x] Docker: JSON logging env, Prometheus profile, obs-stack script
-- [x] Unit + integration observability tests
-- [x] OBSERVABILITY.md updated; version 0.6.0
+| Phase 7 | 2026-07-05 | Single `docker-compose.yml`; v0.7.1 |
 
 ### Phase 7 deliverables
 
-- [x] `docker/compose.dev.yml` — orchestrator + UI → host upstreams (`host.docker.internal`)
-- [x] `scripts/deploy-stack.sh`, `scripts/ecops-token.sh`, `.env.example`
-- [x] `docs/DOCKER.md` aligned with KB-IHMS docker-compose + EC-OPS host process
-- [x] version 0.7.0
+- [x] Root `docker-compose.yml` — mocks + orchestrator + UI + optional `--profile obs`
+- [x] Removed layered compose files and deploy-stack scripts
+- [x] README quick start matches KB-IHMS pattern
 
 ---
 

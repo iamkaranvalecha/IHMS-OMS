@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
-# Manage the full-stack Docker compose environment for E2E tests.
+# Manage the Docker stack for E2E tests (wraps docker compose).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-compose_args() {
-  local args=(-f docker/compose.base.yml -f docker/compose.full.yml)
-  if [[ "${OBS_STACK:-0}" == "1" ]]; then
-    args+=(-f docker/compose.observability.yml --profile obs)
-  fi
-  printf '%s\n' "${args[@]}"
-}
+COMPOSE=(docker compose)
+if [[ "${OBS_STACK:-0}" == "1" ]]; then
+  COMPOSE+=(--profile obs)
+fi
 
-mapfile -t COMPOSE_ARGS < <(compose_args)
-COMPOSE=(docker compose "${COMPOSE_ARGS[@]}")
 ORCHESTRATOR_URL="${E2E_ORCHESTRATOR_URL:-http://localhost:${ORCHESTRATOR_PORT:-8000}}"
 IHMS_URL="${E2E_IHMS_ADMIN_URL:-http://localhost:${IHMS_PORT:-8080}}"
 ECOPS_URL="${E2E_ECOPS_ADMIN_URL:-http://localhost:${ECOPS_PORT:-8002}}"
@@ -45,7 +40,7 @@ cmd="${1:-up}"
 
 case "$cmd" in
   up)
-    echo "==> Starting full E2E stack"
+    echo "==> Starting stack (docker compose up)"
     export ECOPS_READ_TIMEOUT="${ECOPS_READ_TIMEOUT:-2}"
     export LOG_JSON="${LOG_JSON:-true}"
     "${COMPOSE[@]}" up -d --build --wait
@@ -57,13 +52,13 @@ case "$cmd" in
     if [[ "${OBS_STACK:-0}" == "1" ]]; then
       wait_for_url "$PROMETHEUS_URL/-/healthy" "prometheus"
     fi
-    echo "==> E2E stack is up"
+    echo "==> Stack is up"
     if [[ "${OBS_STACK:-0}" == "1" ]]; then
       echo "    Prometheus UI: $PROMETHEUS_URL"
     fi
     ;;
   down)
-    echo "==> Stopping full E2E stack"
+    echo "==> Stopping stack"
     "${COMPOSE[@]}" down -v --remove-orphans
     ;;
   reset)
@@ -76,7 +71,7 @@ case "$cmd" in
     ;;
   *)
     echo "Usage: $0 {up|down|reset|logs [service]}" >&2
-    echo "  OBS_STACK=1 enables Prometheus profile (compose.observability.yml)" >&2
+    echo "  OBS_STACK=1 enables Prometheus (--profile obs)" >&2
     exit 1
     ;;
 esac

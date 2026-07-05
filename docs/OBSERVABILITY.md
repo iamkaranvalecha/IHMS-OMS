@@ -40,7 +40,7 @@ Configure via environment:
 | `LOG_LEVEL` | `INFO` | Root log level |
 | `LOG_JSON` | `true` | JSON vs plain text |
 
-Docker Compose sets these via `x-orchestrator-env` in `docker/compose.base.yml`. Orchestrator logs are JSON lines on stdout; use `docker compose logs orchestrator` or `bash scripts/e2e-stack.sh logs orchestrator`.
+Docker Compose sets `LOG_LEVEL` and `LOG_JSON` via `docker-compose.yml`. Orchestrator logs are JSON lines on stdout; use `docker compose logs orchestrator`.
 
 ## Docker observability stack
 
@@ -58,10 +58,7 @@ Compose files:
 
 | File | Purpose |
 |------|---------|
-| `docker/compose.base.yml` | Shared networks/volumes |
-| `docker/compose.dev.yml` | Deploy stack → host upstreams (Lane 2) |
-| `docker/compose.full.yml` | Mock upstreams + full stack (CI Lane 1b) |
-| `docker/compose.observability.yml` | Prometheus (`--profile obs`) |
+| `docker-compose.yml` | Full stack (mocks + orchestrator + UI); `--profile obs` for Prometheus |
 | `docker/prometheus/prometheus.yml` | Scrape target `orchestrator:8000/metrics` |
 
 ## Middleware
@@ -97,5 +94,5 @@ Compose files:
 ## Future work
 
 - OpenTelemetry SDK + OTLP exporter (`OTEL_ENABLED`)
-- Log aggregation sidecar in compose.full.yml
+- Log aggregation sidecar in docker-compose.yml
 - Grafana dashboard for `/metrics` scrape

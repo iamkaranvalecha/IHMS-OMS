@@ -64,11 +64,8 @@ pytest tests/integration -v
 # E2E (requires full stack)
 STACK=1 bash scripts/verify.sh
 
-# Docker dev stack
-docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
-
-# Docker full stack (Phase 5)
-docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+# Docker full stack
+docker compose up --build
 ```
 
 ## Workflow

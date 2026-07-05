@@ -145,7 +145,7 @@ Aligned with KB-IHMS `oms-integration.mdc` — orchestrator owns delivery; agent
 | 2 | Gateway + session + catalog | IhmsClient, EcOpsClient; contract + component tests |
 | 3 | Saga + flows | place-hold, confirm, cancel, compensate, reconciliation |
 | 4 | React UI | Orchestrator API only; optional dev correlation panel |
-| 5 | Full stack + E2E | compose.full.yml; all FAILURE-SCENARIOS rows tested |
+| 5 | Full stack + E2E | docker-compose.yml; all FAILURE-SCENARIOS rows tested |
 
 Append learnings to [ROADMAP.md](../ROADMAP.md) and [AI-USAGE.md](../AI-USAGE.md) after each gate — not to KB-IHMS unless docs-only cross-repo PR.
 
