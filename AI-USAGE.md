@@ -38,8 +38,24 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Cloud Agent — simplified Docker merge | passed | verify.sh 29 unit; deploy-stack volume-safe down retained from PR #22 |
 | 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
+| 2026-07-05 | Bug-finding automation — e2e port default alignment | pending | Focused regression pending at first commit; CI e2e failure confirmed on PR #28 before fix |
 
 ## Session log
+
+### 2026-07-05 — E2E port default alignment bug fix
+
+**User query:** Deep bug-finding automation for PR #28; fix only critical correctness bugs.
+
+**Bug and impact:**
+- PR #28 changed `docker-compose.yml` and pytest defaults to expose mock EC-OPS on host port `8012` and the UI on `5180`, but `scripts/e2e-stack.sh` still exported `ECOPS_PORT=8002` and `UI_PORT=5173` before invoking Compose.
+- `STACK=1 bash scripts/verify.sh` therefore started mock EC-OPS on `localhost:8002` while the e2e pytest process defaulted its admin client to `localhost:8012`, causing every e2e test to fail during fixture reset with `httpx.ConnectError`.
+
+**Actions:**
+- Aligned `scripts/e2e-stack.sh` mock-stack defaults with compose/test defaults (`ECOPS_PORT=8012`, `UI_PORT=5180`).
+- Updated `tests/unit/test_e2e_stack_script.py` so the regression locks in the new no-clash defaults.
+
+**Verification:**
+- Pending at first commit; run `python3 -m pytest tests/unit/test_e2e_stack_script.py -q`.
 
 ### 2026-07-05 — Mock E2E env isolation bug fix
 
@@ -353,3 +369,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Deep bug-finding automation on PR #15 — reconciliation lookup failure and correlation collision |
 | 2026-07-05 | Deep bug-finding automation on PR #21 — upstream stack volume deletion |
 | 2026-07-05 | Deep bug-finding automation on PR #25 — real-upstream env example |
+| 2026-07-05 | Deep bug-finding automation on PR #28 — e2e port default mismatch |
