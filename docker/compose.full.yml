@@ -1,7 +1,44 @@
-# Full demo / E2E stack — IHMS + EC-OPS + orchestrator + UI (Phase 5).
+# Full demo / E2E stack — mock upstreams + orchestrator + UI (Phase 5).
 # Usage: docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+#
+# Optional real upstream images:
+#   IHMS_IMAGE=ghcr.io/iamkaranvalecha/kb-ihms:latest \
+#   ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:latest \
+#   docker compose -f docker/compose.base.yml -f docker/compose.full.yml up
 
 services:
+  ihms:
+    build:
+      context: mock-upstreams/ihms
+      dockerfile: Dockerfile
+    image: ${IHMS_IMAGE:-ihms-oms-mock-ihms:local}
+    ports:
+      - "${IHMS_PORT:-8080}:8080"
+    networks:
+      - checkout-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  ecops:
+    build:
+      context: mock-upstreams/ecops
+      dockerfile: Dockerfile
+    image: ${ECOPS_IMAGE:-ihms-oms-mock-ecops:local}
+    ports:
+      - "${ECOPS_PORT:-8002}:8002"
+    networks:
+      - checkout-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   orchestrator:
     build:
       context: ..
@@ -12,11 +49,21 @@ services:
       IHMS_BASE_URL: http://ihms:8080
       ECOPS_BASE_URL: http://ecops:8002
       CATALOG_PATH: /app/catalog/products.json
+      ECOPS_READ_TIMEOUT: ${ECOPS_READ_TIMEOUT:-2}
+      IHMS_READ_TIMEOUT: ${IHMS_READ_TIMEOUT:-5}
     depends_on:
-      - ihms
-      - ecops
+      ihms:
+        condition: service_healthy
+      ecops:
+        condition: service_healthy
     networks:
       - checkout-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   ui:
     build:
@@ -25,25 +72,10 @@ services:
     ports:
       - "${UI_PORT:-5173}:5173"
     environment:
-      VITE_API_URL: http://localhost:${ORCHESTRATOR_PORT:-8000}
+      # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
+      VITE_API_URL: ""
     depends_on:
-      - orchestrator
-    networks:
-      - checkout-net
-
-  # Phase 5: wire to published KB-IHMS and EC-OPS images or build contexts.
-  ihms:
-    image: ${IHMS_IMAGE:-ghcr.io/iamkaranvalecha/kb-ihms:latest}
-    profiles: ["full"]
-    ports:
-      - "8080:8080"
-    networks:
-      - checkout-net
-
-  ecops:
-    image: ${ECOPS_IMAGE:-ghcr.io/iamkaranvalecha/ec-ops:latest}
-    profiles: ["full"]
-    ports:
-      - "8002:8002"
+      orchestrator:
+        condition: service_healthy
     networks:
       - checkout-net

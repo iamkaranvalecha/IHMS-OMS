@@ -21,10 +21,13 @@ echo "==> integration"
 python3 -m pytest tests/integration -v --tb=short
 
 if [[ "${STACK:-0}" == "1" ]]; then
-  echo "==> e2e (STACK=1)"
+  echo "==> e2e stack (STACK=1)"
+  bash scripts/e2e-stack.sh up
+  trap 'bash scripts/e2e-stack.sh down' EXIT
+  echo "==> e2e"
   python3 -m pytest tests/e2e -v --tb=short -m e2e
 else
-  echo "==> e2e skipped (set STACK=1 to run)"
+  echo "==> e2e skipped (set STACK=1 to run full stack)"
 fi
 
 echo "==> verify.sh passed"

@@ -26,8 +26,21 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — order timeout cleanup | passed | 46 tests (20 unit, 7 contract, 7 component, 12 integration); e2e skipped unless `STACK=1` |
 | 2026-07-04 | Cloud Agent — Phase 4 React UI | passed | backend verify.sh 46 tests; frontend 7 Vitest + build |
 | 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
+| 2026-07-05 | Cloud Agent — Phase 5 full stack E2E | passed | backend verify.sh 46 tests; `STACK=1` runs 7 e2e against mock upstream compose stack |
 
 ## Session log
+
+### 2026-07-05 — Phase 5 full stack E2E (v0.5.0)
+
+**User query:** Continue Phase 5 after Phase 4 merge.
+
+**Actions:**
+- Wire-compatible mock IHMS + EC-OPS in `docker/mock-upstreams/`
+- Fixed `docker/compose.full.yml` (healthchecks, nginx UI proxy, removed broken profiles)
+- `scripts/e2e-stack.sh` for up/down/reset; `verify.sh` starts stack when `STACK=1`
+- E2E tests: health, catalog, happy path, hold 409, compensate, reconcile, abandon
+- CI `e2e` job enabled without `continue-on-error`
+- README portfolio section; ROADMAP Phase 5 complete; version 0.5.0
 
 ### 2026-07-04 — Phase 1 scaffold (v4 plan)
 
