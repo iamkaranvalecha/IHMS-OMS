@@ -51,12 +51,11 @@ export function useCheckoutMutations(onObservability?: (ids: ObservabilityIds) =
   };
 
   const startCheckout = useMutation({
-    mutationFn: async (payload: { cart: CartItem; customerName: string }) => {
+    mutationFn: async (payload: { cart: CartItem[]; customerName: string }) => {
       const created = await createSession();
       track(created.observability);
       const held = await placeHold(created.data.sessionId, {
-        sku: payload.cart.sku,
-        quantity: payload.cart.quantity,
+        items: payload.cart.map((line) => ({ sku: line.sku, quantity: line.quantity })),
         customerName: payload.customerName,
       });
       track(held.observability);

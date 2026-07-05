@@ -160,9 +160,13 @@ class SessionCreateBody(BaseModel):
     )
 
 
-class PlaceHoldBody(BaseModel):
+class HoldLineItemBody(BaseModel):
     sku: str = Field(min_length=1)
     quantity: int = Field(gt=0, default=1)
+
+
+class PlaceHoldBody(BaseModel):
+    items: list[HoldLineItemBody] = Field(min_length=1)
     customer_name: str = Field(min_length=1)
 
 
@@ -216,8 +220,7 @@ async def place_hold(
     try:
         session = await checkout.place_hold(
             session_id,
-            body.sku,
-            body.quantity,
+            [(item.sku, item.quantity) for item in body.items],
             body.customer_name,
             headers,
         )

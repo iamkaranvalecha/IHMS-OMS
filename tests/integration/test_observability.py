@@ -44,6 +44,13 @@ def _ihms_hold(hold_id: str = "hold-obs") -> dict:
     }
 
 
+def _hold_body(customer_name: str = "Customer") -> dict:
+    return {
+        "items": [{"sku": "WIDGET-001", "quantity": 1}],
+        "customer_name": customer_name,
+    }
+
+
 @respx.mock
 async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     create = await client.post("/sessions", json={})
@@ -60,7 +67,7 @@ async def test_metrics_increment_on_happy_path(client: AsyncClient) -> None:
     )
     await client.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Obs Customer"},
+        json=_hold_body("Obs Customer"),
     )
 
     from uuid import uuid4
@@ -122,7 +129,7 @@ async def test_saga_emits_structured_log_steps(
     )
     await client.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Log Customer"},
+        json=_hold_body("Log Customer"),
     )
 
     steps = [getattr(record, "step", None) for record in caplog.records]

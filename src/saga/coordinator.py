@@ -66,23 +66,35 @@ class SagaCoordinator:
     async def place_hold(
         self,
         session_id: UUID,
-        sku: str,
-        quantity: int,
+        items: list[tuple[str, int]],
         customer_name: str,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
-        product = self.catalog.get_product(sku)
-        if product is None:
-            raise ProductNotFoundError(f"Product {sku} not found")
+        if not items:
+            raise InvalidStateTransitionError(
+                "Cannot place hold with an empty cart",
+                detail="At least one line item is required",
+            )
 
-        line_item = SessionLineItem(
-            sku=product.sku,
-            name=product.name,
-            ihms_product_id=product.ihms_product_id,
-            ecops_item_code=product.ecops_item_code,
-            quantity=quantity,
-            unit_price=product.unit_price,
-        )
+        merged_quantities: dict[str, int] = {}
+        for sku, quantity in items:
+            merged_quantities[sku] = merged_quantities.get(sku, 0) + quantity
+
+        line_items: list[SessionLineItem] = []
+        for sku, quantity in merged_quantities.items():
+            product = self.catalog.get_product(sku)
+            if product is None:
+                raise ProductNotFoundError(f"Product {sku} not found")
+            line_items.append(
+                SessionLineItem(
+                    sku=product.sku,
+                    name=product.name,
+                    ihms_product_id=product.ihms_product_id,
+                    ecops_item_code=product.ecops_item_code,
+                    quantity=quantity,
+                    unit_price=product.unit_price,
+                )
+            )
 
         session = self.sessions.get(session_id)
         if session is None:
@@ -94,7 +106,8 @@ class SagaCoordinator:
             )
 
         hold_items = [
-            CreateHoldItemRequest(product_id=line_item.ihms_product_id, quantity=line_item.quantity)
+            CreateHoldItemRequest(product_id=item.ihms_product_id, quantity=item.quantity)
+            for item in line_items
         ]
         async with self.sessions.lock_for(session_id):
             session = self.sessions.get(session_id)
@@ -105,7 +118,7 @@ class SagaCoordinator:
                     f"Cannot place hold from state {session.state.value}",
                 )
 
-            await self._assert_sufficient_stock(line_item.ihms_product_id, quantity, headers)
+            await self._assert_sufficient_stock_for_lines(line_items, headers)
 
             try:
                 hold = await self.ihms.create_hold(hold_items, headers)
@@ -125,7 +138,7 @@ class SagaCoordinator:
                     "hold_id": hold.hold_id,
                     "expires_at": hold.expires_at,
                     "customer_name": customer_name,
-                    "line_items": [line_item],
+                    "line_items": line_items,
                 }
             )
             saved = self.sessions.save(updated)
@@ -512,25 +525,28 @@ class SagaCoordinator:
             IdempotencyRecord(status_code=200, body=body, order_id=session.order_id),
         )
 
-    async def _assert_sufficient_stock(
+    async def _assert_sufficient_stock_for_lines(
         self,
-        ihms_product_id: str,
-        quantity: int,
+        line_items: list[SessionLineItem],
         headers: ObservabilityHeaders,
     ) -> None:
         try:
             inventory = await self.ihms.get_inventory(headers)
         except GatewayError:
             return
-        available = next(
-            (item.available_quantity for item in inventory if item.product_id == ihms_product_id),
-            0,
-        )
-        if quantity > available:
-            raise InsufficientStockError(
-                f"Only {available} units available",
-                detail=f"Requested {quantity}, available {available}",
-            )
+        inventory_by_product_id = {
+            item.product_id: item.available_quantity for item in inventory
+        }
+        for line_item in line_items:
+            available = inventory_by_product_id.get(line_item.ihms_product_id, 0)
+            if line_item.quantity > available:
+                raise InsufficientStockError(
+                    f"Only {available} units available for {line_item.sku}",
+                    detail=(
+                        f"Requested {line_item.quantity} of {line_item.sku}, "
+                        f"available {available}"
+                    ),
+                )
 
     async def _compensate_and_fail_locked(
         self,

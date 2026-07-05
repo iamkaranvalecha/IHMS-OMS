@@ -89,12 +89,11 @@ class CheckoutService:
     async def place_hold(
         self,
         session_id: UUID,
-        sku: str,
-        quantity: int,
+        items: list[tuple[str, int]],
         customer_name: str,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
-        return await self.saga.place_hold(session_id, sku, quantity, customer_name, headers)
+        return await self.saga.place_hold(session_id, items, customer_name, headers)
 
     async def confirm(
         self,

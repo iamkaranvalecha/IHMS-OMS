@@ -4,14 +4,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CartItem } from "@/api/types";
 import { CartPanel } from "./CartPanel";
 
-const cart: CartItem = {
-  sku: "WIDGET-001",
-  name: "Widget",
-  unitPrice: 19.99,
-  quantity: 1,
-  maxQuantity: 10,
-  stockUnknown: false,
-};
+const cart: CartItem[] = [
+  {
+    sku: "WIDGET-001",
+    name: "Widget",
+    unitPrice: 19.99,
+    quantity: 1,
+    maxQuantity: 10,
+    stockUnknown: false,
+  },
+];
 
 describe("CartPanel", () => {
   afterEach(() => {
@@ -34,10 +36,10 @@ describe("CartPanel", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("Quantity for Widget"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Place hold & checkout" }));
 
-    expect(onCartChange).toHaveBeenCalledWith({ ...cart, quantity: 5 });
-    expect(onCheckout).toHaveBeenCalledWith({ ...cart, quantity: 5 });
+    expect(onCartChange).toHaveBeenCalledWith([{ ...cart[0], quantity: 5 }]);
+    expect(onCheckout).toHaveBeenCalledWith([{ ...cart[0], quantity: 5 }]);
   });
 });

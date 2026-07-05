@@ -68,7 +68,7 @@ async def test_saga_compensates_when_ecops_returns_500(
         expires_at=datetime.now(UTC) + timedelta(minutes=10),
     )
     held = await checkout.place_hold(
-        session.session_id, "WIDGET-001", 1, "Customer", obs
+        session.session_id, [("WIDGET-001", 1)], "Customer", obs
     )
     assert held.state == SessionState.HELD
 
@@ -96,7 +96,7 @@ async def test_saga_happy_path_hold_then_confirm(checkout: CheckoutService, obs)
         expires_at=datetime.now(UTC) + timedelta(minutes=10),
     )
     held = await checkout.place_hold(
-        session.session_id, "WIDGET-001", 1, "Happy Customer", obs
+        session.session_id, [("WIDGET-001", 1)], "Happy Customer", obs
     )
     order_id = uuid4()
     checkout.ecops.create_order.return_value = OrderResponse(

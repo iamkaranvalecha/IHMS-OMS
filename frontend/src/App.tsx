@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCatalog, useCheckoutMutations, useSession } from "@/api/hooks";
 import { isApiError } from "@/api/types";
 import type { CartItem, ObservabilityIds } from "@/api/types";
+import { addToCart, removeFromCart, syncCartWithCatalog } from "@/cart";
 import { CartPanel } from "@/components/CartPanel";
 import { CatalogGrid } from "@/components/CatalogGrid";
 import { CheckoutPanel } from "@/components/CheckoutPanel";
@@ -67,7 +68,7 @@ function isActiveCheckout(state: string): boolean {
 
 export function App() {
   const storedActiveCheckout = useMemo(() => readStoredActiveCheckout(), []);
-  const [cart, setCart] = useState<CartItem | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(
     storedActiveCheckout?.sessionId ?? null,
@@ -96,37 +97,18 @@ export function App() {
   }, [session]);
 
   useEffect(() => {
-    const sku = cart?.sku;
-    if (!sku) {
-      return;
-    }
-    const product = products.find((item) => item.sku === sku);
-    if (!product) {
-      return;
-    }
     setCart((current) => {
-      if (!current || current.sku !== sku) {
+      if (current.length === 0) {
         return current;
       }
-      const stockUnknown = product.availableQuantity === null;
-      const maxQuantity =
-        product.availableQuantity === null
-          ? current.maxQuantity
-          : Math.max(product.availableQuantity, 0);
-      const quantity =
-        maxQuantity > 0 ? Math.min(current.quantity, maxQuantity) : current.quantity;
-      if (
-        current.maxQuantity === maxQuantity &&
-        current.quantity === quantity &&
-        current.stockUnknown === stockUnknown
-      ) {
-        return current;
-      }
-      return { ...current, maxQuantity, quantity, stockUnknown };
+      return syncCartWithCatalog(current, products);
     });
-  }, [products, cart?.sku]);
+  }, [products]);
 
-  const handleStartCheckout = async (checkoutCart: CartItem) => {
+  const handleStartCheckout = async (checkoutCart: CartItem[]) => {
+    if (checkoutCart.length === 0) {
+      return;
+    }
     setError(null);
     try {
       const result = await startCheckout.mutateAsync({
@@ -157,7 +139,7 @@ export function App() {
       const result = await confirmCheckout.mutateAsync({ sessionId, idempotencyKey });
       if (isTerminalState(result.data.state)) {
         clearStoredActiveCheckout();
-        setCart(null);
+        setCart([]);
       }
     } catch (err) {
       setError(isApiError(err) ? err.detail : "Confirm failed");
@@ -172,7 +154,7 @@ export function App() {
     try {
       await abandonCheckout.mutateAsync(sessionId);
       clearStoredActiveCheckout();
-      setCart(null);
+      setCart([]);
     } catch (err) {
       setError(isApiError(err) ? err.detail : "Abandon failed");
     }
@@ -199,7 +181,7 @@ export function App() {
           <CatalogGrid
             products={products}
             cart={cart}
-            onAdd={setCart}
+            onAdd={(item) => setCart((current) => addToCart(current, item))}
             disabled={checkoutActive || startCheckout.isPending}
           />
           <CartPanel
@@ -207,7 +189,7 @@ export function App() {
             customerName={customerName}
             onCustomerNameChange={setCustomerName}
             onCartChange={setCart}
-            onRemove={() => setCart(null)}
+            onRemove={(sku) => setCart((current) => removeFromCart(current, sku))}
             onCheckout={(checkoutCart) => void handleStartCheckout(checkoutCart)}
             checkoutPending={startCheckout.isPending}
             disabled={checkoutActive}

@@ -39,9 +39,9 @@ vi.mock("@/components/CartPanel", () => ({
     onCheckout,
     onCustomerNameChange,
   }: {
-    cart: CartItem | null;
+    cart: CartItem[];
     customerName: string;
-    onCheckout: (item: CartItem) => void;
+    onCheckout: (items: CartItem[]) => void;
     onCustomerNameChange: (value: string) => void;
   }) => (
     <div>
@@ -52,7 +52,7 @@ vi.mock("@/components/CartPanel", () => ({
           onCustomerNameChange(event.target.value)
         }
       />
-      <button type="button" disabled={!cart} onClick={() => cart && onCheckout(cart)}>
+      <button type="button" disabled={cart.length === 0} onClick={() => onCheckout(cart)}>
         Place hold
       </button>
     </div>

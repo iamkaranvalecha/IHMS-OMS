@@ -5,7 +5,7 @@ import { formatCurrency } from "@/api/normalize";
 
 interface CatalogGridProps {
   products: CatalogProduct[];
-  cart: CartItem | null;
+  cart: CartItem[];
   onAdd: (item: CartItem) => void;
   disabled?: boolean;
 }
@@ -18,7 +18,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
       <h2>Inventory</h2>
       <ul className="catalog-grid">
         {products.map((product) => {
-          const inCart = cart?.sku === product.sku;
+          const inCart = cart.some((line) => line.sku === product.sku);
           const availableQuantity = product.availableQuantity;
           const stockUnknown = availableQuantity === null;
           const outOfStock = availableQuantity !== null && availableQuantity <= 0;
@@ -44,7 +44,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                     min={1}
                     max={maxQty}
                     value={selectedQty}
-                    disabled={disabled || inCart}
+                    disabled={disabled}
                     onChange={(event) => {
                       const parsed = Number.parseInt(event.target.value, 10);
                       if (!Number.isFinite(parsed)) {
@@ -60,7 +60,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
               )}
               <button
                 type="button"
-                disabled={disabled || inCart || outOfStock || stockUnknown}
+                disabled={disabled || outOfStock || stockUnknown}
                 onClick={() => {
                   const quantity = Math.min(Math.max(selectedQty, 1), maxQty);
                   onAdd({
@@ -73,7 +73,7 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
                   });
                 }}
               >
-                {inCart ? "In cart" : outOfStock ? "Unavailable" : stockUnknown ? "Stock unknown" : "Add to cart"}
+                {inCart ? "Add more" : outOfStock ? "Unavailable" : stockUnknown ? "Stock unknown" : "Add to cart"}
               </button>
             </li>
           );

@@ -7,6 +7,16 @@ import pytest
 from tests.e2e.conftest import ECOPS_ADMIN_URL, IHMS_ADMIN_URL
 
 
+def _hold_body(
+    customer_name: str = "E2E Customer",
+    *,
+    items: list[dict[str, object]] | None = None,
+) -> dict:
+    if items is None:
+        items = [{"sku": "WIDGET-001", "quantity": 1}]
+    return {"items": items, "customer_name": customer_name}
+
+
 @pytest.mark.e2e
 async def test_metrics_endpoint(api: httpx.AsyncClient) -> None:
     response = await api.get("/metrics")
@@ -51,7 +61,7 @@ async def test_catalog_shows_live_inventory(api: httpx.AsyncClient) -> None:
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 2, "customer_name": "Inventory E2E"},
+        json=_hold_body("Inventory E2E", items=[{"sku": "WIDGET-001", "quantity": 2}]),
     )
     assert hold.status_code == 200
 
@@ -82,7 +92,7 @@ async def test_happy_path_hold_and_confirm(api: httpx.AsyncClient) -> None:
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
     held = hold.json()
@@ -116,7 +126,7 @@ async def test_hold_fails_with_409(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 409
 
@@ -137,7 +147,7 @@ async def test_confirm_compensates_when_order_fails(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
     assert hold.json()["state"] == "HELD"
@@ -169,7 +179,7 @@ async def test_reconcile_after_order_timeout(
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
 
@@ -192,7 +202,7 @@ async def test_abandon_releases_hold(api: httpx.AsyncClient) -> None:
 
     hold = await api.post(
         f"/sessions/{session_id}/hold",
-        json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "E2E Customer"},
+        json=_hold_body("E2E Customer"),
     )
     assert hold.status_code == 200
 

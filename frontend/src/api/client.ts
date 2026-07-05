@@ -66,13 +66,12 @@ export async function fetchSession(sessionId: string): Promise<ApiResult<Checkou
 
 export async function placeHold(
   sessionId: string,
-  payload: { sku: string; quantity: number; customerName: string },
+  payload: { items: Array<{ sku: string; quantity: number }>; customerName: string },
 ): Promise<ApiResult<CheckoutSession>> {
   const result = await requestJson<unknown>(`/sessions/${sessionId}/hold`, {
     method: "POST",
     body: JSON.stringify({
-      sku: payload.sku,
-      quantity: payload.quantity,
+      items: payload.items,
       customer_name: payload.customerName,
     }),
   });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { isHoldExpired } from "@/api/normalize";
+import { isHoldExpired, formatCurrency } from "@/api/normalize";
 import type { CheckoutSession } from "@/api/types";
 import { HoldCountdown } from "./HoldCountdown";
 
@@ -66,6 +66,15 @@ export function CheckoutPanel({
       </p>
       {session.state === "HELD" && (
         <>
+          {session.lineItems.length > 0 && (
+            <ul className="checkout-lines">
+              {session.lineItems.map((line) => (
+                <li key={line.sku}>
+                  {line.name} × {line.quantity} — {formatCurrency(line.unitPrice * line.quantity)}
+                </li>
+              ))}
+            </ul>
+          )}
           <HoldCountdown expiresAt={session.expiresAt} />
           <button
             type="button"

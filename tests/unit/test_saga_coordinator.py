@@ -57,6 +57,7 @@ def saga(catalog: JsonCatalogProvider) -> SagaCoordinator:
     ihms.get_inventory = AsyncMock(
         return_value=[
             InventoryItemResponse(product_id="prod-widget-001", available_quantity=100),
+            InventoryItemResponse(product_id="prod-gadget-002", available_quantity=100),
         ]
     )
     ihms.release_hold = AsyncMock()
@@ -108,7 +109,7 @@ async def test_place_hold_transitions_to_held(
     )
 
     result = await saga.place_hold(
-        session.session_id, "WIDGET-001", 1, "Jane Doe", obs
+        session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs
     )
 
     assert result.state == SessionState.HELD
@@ -137,8 +138,8 @@ async def test_concurrent_place_hold_creates_single_upstream_hold(
     saga.ihms.create_hold.side_effect = create_hold
 
     results = await asyncio.gather(
-        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
-        saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs),
+        saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs),
+        saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs),
         return_exceptions=True,
     )
 
@@ -461,7 +462,7 @@ async def test_place_hold_unknown_session_raises(
     saga: SagaCoordinator, obs: ObservabilityHeaders
 ) -> None:
     with pytest.raises(SessionNotFoundError):
-        await saga.place_hold(uuid4(), "WIDGET-001", 1, "Jane", obs)
+        await saga.place_hold(uuid4(), [("WIDGET-001", 1)], "Jane", obs)
 
 
 @pytest.mark.asyncio
@@ -488,7 +489,7 @@ async def test_place_hold_rejects_insufficient_stock(
     ]
 
     with pytest.raises(InsufficientStockError):
-        await saga.place_hold(session.session_id, "WIDGET-001", 1, "Jane Doe", obs)
+        await saga.place_hold(session.session_id, [("WIDGET-001", 1)], "Jane Doe", obs)
 
     saga.ihms.create_hold.assert_not_awaited()
 
@@ -569,3 +570,60 @@ async def test_resolve_missing_order_raises_unknown_not_compensate(
     assert updated is not None
     assert updated.state == SessionState.HELD
     saga.ihms.release_hold.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_place_hold_multi_item(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.create_hold.return_value = HoldResponse(
+        hold_id="hold-multi",
+        status=HoldStatus.ACTIVE,
+        items=[
+            HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=2),
+            HoldItemResponse(product_id="prod-gadget-002", name="Gadget", quantity=1),
+        ],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    result = await saga.place_hold(
+        session.session_id,
+        [("WIDGET-001", 2), ("GADGET-002", 1)],
+        "Jane Doe",
+        obs,
+    )
+
+    assert result.state == SessionState.HELD
+    assert len(result.line_items) == 2
+    assert {item.sku for item in result.line_items} == {"WIDGET-001", "GADGET-002"}
+    assert saga.ihms.create_hold.await_args.args[0][0].product_id == "prod-widget-001"
+    assert saga.ihms.create_hold.await_args.args[0][1].product_id == "prod-gadget-002"
+
+
+@pytest.mark.asyncio
+async def test_place_hold_merges_duplicate_skus(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-unit", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.create_hold.return_value = HoldResponse(
+        hold_id="hold-merge",
+        status=HoldStatus.ACTIVE,
+        items=[HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=3)],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    result = await saga.place_hold(
+        session.session_id,
+        [("WIDGET-001", 1), ("WIDGET-001", 2)],
+        "Jane Doe",
+        obs,
+    )
+
+    assert len(result.line_items) == 1
+    assert result.line_items[0].quantity == 3
+    assert saga.ihms.create_hold.await_args.args[0][0].quantity == 3
