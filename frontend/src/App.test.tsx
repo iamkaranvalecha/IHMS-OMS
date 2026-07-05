@@ -20,10 +20,7 @@ vi.mock("@/components/CatalogGrid", () => ({
         onAdd({
           sku: "WIDGET-001",
           name: "Widget",
-          ihmsProductId: "prod-widget-001",
-          ecopsItemCode: "WIDGET-001",
           unitPrice: 19.99,
-          availableQuantity: 10,
           quantity: 1,
           maxQuantity: 10,
           stockUnknown: false,
