@@ -38,7 +38,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Cloud Agent — simplified Docker merge | passed | verify.sh 29 unit; deploy-stack volume-safe down retained from PR #22 |
 | 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
-| 2026-07-05 | Bug-finding automation — e2e port default alignment | pending | Focused regression pending at first commit; CI e2e failure confirmed on PR #28 before fix |
+| 2026-07-05 | Bug-finding automation — e2e port default alignment | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); Docker unavailable for local `STACK=1` rerun |
 
 ## Session log
 
@@ -55,7 +55,10 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - Updated `tests/unit/test_e2e_stack_script.py` so the regression locks in the new no-clash defaults.
 
 **Verification:**
-- Pending at first commit; run `python3 -m pytest tests/unit/test_e2e_stack_script.py -q`.
+- Initial focused regression attempt failed before collection because pytest was not installed; installed repo dev dependencies with `python3 -m pip install -e ".[dev]"`.
+- `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` -> 1 passed.
+- `bash scripts/verify.sh` -> passed (30 unit, 7 contract, 7 component, 20 integration; e2e skipped unless `STACK=1`).
+- `docker --version && docker compose version` -> blocked because `docker` is not installed in this runner; full local `STACK=1` rerun was not possible here.
 
 ### 2026-07-05 — Mock E2E env isolation bug fix
 
