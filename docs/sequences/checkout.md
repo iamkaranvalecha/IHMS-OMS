@@ -35,12 +35,20 @@ sequenceDiagram
   API->>CAT: resolve SKU → ecops_item_code
   API->>OPS: POST /orders
   OPS-->>API: order_id
+  API->>IHMS: POST /api/holds/{hold_id}/fulfill
+  IHMS-->>API: fulfilled
   API-->>UI: confirmed
 ```
 
 ## Failure branches
 
-See [FAILURE-SCENARIOS.md](../FAILURE-SCENARIOS.md) — hold fail, duplicate confirm.
+See [FAILURE-SCENARIOS.md](../FAILURE-SCENARIOS.md) — hold fail, duplicate confirm,
+and inventory finalization after order success.
+
+When EC-OPS creates the order but IHMS fulfill fails, the session stays `HELD` with
+the original `Idempotency-Key`. A retry with that key reconciles the existing order
+before attempting fulfillment again, so checkout does not create a duplicate order
+or report completion while inventory is still restorable.
 
 ## Phase gate
 

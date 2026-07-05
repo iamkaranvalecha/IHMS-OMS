@@ -213,8 +213,11 @@ class SagaCoordinator:
                         idempotency_key=idempotency_key,
                         client_reference=session.correlation_id,
                     )
-                if session.hold_id:
-                    await fulfill_hold_safe(self.ihms, session.hold_id, headers)
+                await self._fulfill_order_hold_or_defer_locked(
+                    session,
+                    headers,
+                    idempotency_key,
+                )
                 terminal = SessionState.RECONCILED if reconciled else SessionState.CONFIRMED
                 result = self._finalize_success_locked(
                     session,
@@ -363,8 +366,11 @@ class SagaCoordinator:
                 detail="Order status is unknown; hold was not released",
             ) from exc
         if order is not None:
-            if session.hold_id:
-                await fulfill_hold_safe(self.ihms, session.hold_id, headers)
+            await self._fulfill_order_hold_or_defer_locked(
+                session,
+                headers,
+                idempotency_key,
+            )
             return self._finalize_success_locked(
                 session,
                 order,
@@ -375,6 +381,24 @@ class SagaCoordinator:
         await self._compensate_and_fail_locked(session, headers)
         raise CompensationIncompleteError(
             "Previous order attempt was not found; hold release attempted",
+        )
+
+    async def _fulfill_order_hold_or_defer_locked(
+        self,
+        session: CheckoutSession,
+        headers: ObservabilityHeaders,
+        idempotency_key: str,
+    ) -> None:
+        """Ensure inventory finalization succeeds before the session becomes terminal."""
+        if not session.hold_id:
+            return
+        fulfilled = await fulfill_hold_safe(self.ihms, session.hold_id, headers)
+        if fulfilled:
+            return
+        self.sessions.save(session.model_copy(update={"idempotency_key": idempotency_key}))
+        raise CompensationIncompleteError(
+            "Order was created but inventory could not be finalized; "
+            "retry confirm with the original Idempotency-Key",
         )
 
     async def _compensate_and_fail_locked(

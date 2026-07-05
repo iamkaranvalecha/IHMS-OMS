@@ -161,6 +161,43 @@ async def test_confirm_happy_path(saga: SagaCoordinator, obs: ObservabilityHeade
 
 
 @pytest.mark.asyncio
+async def test_confirm_fulfill_failure_defers_terminal_state_for_retry(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    order = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+    saga.ecops.create_order.return_value = order
+    saga.ecops.find_order_by_client_reference.side_effect = [None, order]
+    saga.ihms.fulfill_hold.side_effect = [GatewayError("fulfill down"), None]
+
+    with pytest.raises(CompensationIncompleteError):
+        await saga.confirm(session.session_id, None, "idem-fulfill-fail", obs)
+
+    pending = saga.sessions.get(session.session_id)
+    assert pending is not None
+    assert pending.state == SessionState.HELD
+    assert pending.order_id is None
+    assert pending.idempotency_key == "idem-fulfill-fail"
+
+    result = await saga.confirm(session.session_id, None, "idem-fulfill-fail", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+    assert saga.ecops.create_order.await_count == 1
+    assert saga.ihms.fulfill_hold.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_confirm_compensates_on_order_failure(
     saga: SagaCoordinator, obs: ObservabilityHeaders
 ) -> None:

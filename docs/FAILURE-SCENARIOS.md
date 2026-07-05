@@ -9,6 +9,7 @@ Matrix of failure modes, detection, actions, and sequence documentation. Saga lo
 | Hold expires before confirm | IHMS 409 / countdown | Block confirm | [expiry.md](sequences/expiry.md) |
 | Upstream unavailable | timeout / 503 | Fail or limited retry per [PERFORMANCE.md](PERFORMANCE.md) | — |
 | Duplicate confirm | Idempotency key | Cached response | [checkout.md](sequences/checkout.md) |
+| Inventory finalization fails after order | IHMS fulfill timeout / 5xx after EC-OPS order success | Keep session HELD, retain original idempotency key, return 503; retry confirm reconciles the existing order before finalizing inventory | [checkout.md](sequences/checkout.md) |
 | Partial success after timeout | httpx timeout on `POST /orders` | Reconcile by client reference; compensate only after a successful lookup with no trusted match; retain hold if lookup fails | [reconciliation.md](sequences/reconciliation.md) |
 
 ## Reconciliation summary
