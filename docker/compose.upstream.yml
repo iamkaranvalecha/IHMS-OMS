@@ -1,5 +1,17 @@
-# Orchestrator-only dev stack. Upstreams started separately or mocked.
-# Usage: docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
+# Orchestrator + checkout UI wired to real KB-IHMS and EC-OPS already running on the host.
+# Lane 2 — use when upstream repos are deployed separately (their docker compose up).
+#
+# Prerequisites:
+#   KB-IHMS API reachable (default host port 5000 → container 8080)
+#   EC-OPS API reachable (default host port 8002)
+#   ECOPS_BEARER_TOKEN set (JWT from POST /auth/token on EC-OPS)
+#
+# Usage:
+#   cp .env.example .env   # set ECOPS_BEARER_TOKEN
+#   bash scripts/upstream-stack.sh up
+#
+# With Prometheus:
+#   OBS_STACK=1 bash scripts/upstream-stack.sh up
 
 x-orchestrator-env: &orchestrator-env
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -25,7 +37,7 @@ services:
       <<: *orchestrator-env
       IHMS_BASE_URL: ${IHMS_BASE_URL:-http://host.docker.internal:5000}
       ECOPS_BASE_URL: ${ECOPS_BASE_URL:-http://host.docker.internal:8002}
-      ECOPS_BEARER_TOKEN: ${ECOPS_BEARER_TOKEN:-}
+      ECOPS_BEARER_TOKEN: ${ECOPS_BEARER_TOKEN:?Set ECOPS_BEARER_TOKEN in .env — see docs/DOCKER.md}
       ECOPS_READ_TIMEOUT: ${ECOPS_READ_TIMEOUT:-10}
       IHMS_READ_TIMEOUT: ${IHMS_READ_TIMEOUT:-5}
       CATALOG_PATH: /app/catalog/products.json
@@ -38,18 +50,17 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
       timeout: 3s
-      retries: 6
-      start_period: 10s
+      retries: 12
+      start_period: 15s
 
   ui:
-    profiles: ["ui"]
     build:
       context: ../frontend
       dockerfile: Dockerfile
     ports:
-      - "${UI_PORT:-5173}:5173"
+      # 5180 avoids clashing with KB-IHMS frontend on host 5173
+      - "${UI_PORT:-5180}:5173"
     environment:
-      # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
       VITE_API_URL: ""
     depends_on:
       orchestrator:
@@ -60,5 +71,5 @@ services:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5173/health"]
       interval: 10s
       timeout: 3s
-      retries: 6
-      start_period: 10s
+      retries: 10
+      start_period: 15s

@@ -1,6 +1,6 @@
 [project]
 name = "checkout-orchestrator"
-version = "0.6.0"
+version = "0.7.0"
 description = "BFF and saga orchestrator integrating KB-IHMS holds with EC-OPS orders"
 readme = "README.md"
 requires-python = ">=3.12"
