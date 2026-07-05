@@ -106,6 +106,6 @@ exit 0
     assert "ECOPS_BEARER_TOKEN=\n" in log
     assert "ORCHESTRATOR_PORT=8000" in log
     assert "IHMS_PORT=8080" in log
-    assert "ECOPS_PORT=8002" in log
-    assert "UI_PORT=5173" in log
+    assert "ECOPS_PORT=8012" in log
+    assert "UI_PORT=5180" in log
     assert "host.docker.internal" not in log
