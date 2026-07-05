@@ -75,7 +75,7 @@ async def test_happy_path_hold_and_confirm(client: AsyncClient) -> None:
         f"/sessions/{session_id}/hold",
         json={"sku": "WIDGET-001", "quantity": 1, "customer_name": "Integration Customer"},
     )
-    assert hold_resp.status_code == 200
+    assert hold_resp.status_code == 200, hold_resp.text
     assert hold_resp.json()["state"] == "HELD"
     assert hold_resp.json()["hold_id"] == "hold-int"
 
