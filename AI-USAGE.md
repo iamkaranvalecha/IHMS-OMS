@@ -28,8 +28,29 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Bug-finding automation — frontend container API proxy | passed | `bash scripts/verify.sh`; frontend 7 Vitest + build; Docker/nginx binary unavailable for live container syntax check |
 | 2026-07-05 | Cloud Agent — Phase 5 full stack E2E | passed | backend verify.sh 47 tests; `STACK=1` runs 7 e2e against mock upstream compose stack |
 | 2026-07-05 | Consolidated PR #15 | passed | Supersedes #13 (frontend idempotency) + #16 (upstream rules); e2e reconcile fix |
+| 2026-07-05 | Bug-finding automation — reconciliation lookup failure | passed | `bash scripts/verify.sh` (20 unit, 7 contract, 7 component, 14 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Reconciliation lookup failure bug fix
+
+**User query:** Deep bug-finding automation for PR #15; fix only critical correctness bugs.
+
+**Bug and impact:**
+- After `POST /orders` timed out, a transient failure while querying EC-OPS `/orders` propagated as an order failure.
+- The saga compensated the IHMS hold even though EC-OPS may already have created the order, risking order/hold divergence and inventory being released for a real customer order.
+
+**Human audit — rejected AI shortcuts:**
+- Rejected treating a failed reconciliation lookup as "no trusted match"; a lookup that never completed cannot prove the order is absent.
+
+**Actions:**
+- Reconciliation now raises on exhausted lookup timeouts instead of returning `None`.
+- The coordinator now maps reconciliation lookup failures to `CompensationIncompleteError` without releasing the hold.
+- Added an integration regression for create timeout + EC-OPS list failure; updated reconciliation docs and ADR-008.
+
+**Verification:**
+- `python3 -m pytest tests/integration/test_saga_flows.py::test_reconcile_lookup_failure_retains_hold -q` → passed.
+- `bash scripts/verify.sh` → passed (20 unit, 7 contract, 7 component, 14 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — Consolidate open PRs + fix e2e reconcile CI
 
@@ -218,3 +239,4 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-04 | Deep bug-finding automation on PR #6 — saga concurrency races |
 | 2026-07-04 | Deep bug-finding automation on PR #6 — order timeout cleanup |
 | 2026-07-04 | Deep bug-finding automation on PR #11 — frontend container API proxy |
+| 2026-07-05 | Deep bug-finding automation on PR #15 — reconciliation lookup failure |
