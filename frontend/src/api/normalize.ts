@@ -14,6 +14,9 @@ interface WireCatalogProduct {
   ecops_item_code: string;
   unit_price: number;
   available_quantity: number | null;
+  description?: string | null;
+  image_url?: string | null;
+  category?: string | null;
 }
 
 interface WireSessionLineItem {
@@ -59,6 +62,9 @@ export function normalizeCatalogProduct(raw: WireCatalogProduct): CatalogProduct
     ecopsItemCode: raw.ecops_item_code,
     unitPrice: raw.unit_price,
     availableQuantity: raw.available_quantity ?? null,
+    description: raw.description ?? null,
+    imageUrl: raw.image_url ?? null,
+    category: raw.category ?? null,
   };
 }
 

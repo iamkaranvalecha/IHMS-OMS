@@ -588,6 +588,7 @@ class SagaCoordinator:
         ]
         return OrderCreate(
             customer_name=customer_name,
+            client_reference=session.correlation_id,
             items=items,
         )
 

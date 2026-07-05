@@ -16,6 +16,33 @@ PRODUCT_NAMES = {
     "prod-gadget-002": "Premium Gadget",
 }
 
+PRODUCT_CATALOG = [
+    {
+        "productId": "prod-widget-001",
+        "sku": "WIDGET-001",
+        "name": "Standard Widget",
+        "description": "Reliable everyday widget",
+        "category": "Widgets",
+        "unitPrice": 19.99,
+        "currency": "USD",
+        "availableQuantity": 100,
+        "imageUrl": "",
+        "sellable": True,
+    },
+    {
+        "productId": "prod-gadget-002",
+        "sku": "GADGET-002",
+        "name": "Premium Gadget",
+        "description": "Feature-rich premium gadget",
+        "category": "Gadgets",
+        "unitPrice": 49.99,
+        "currency": "USD",
+        "availableQuantity": 50,
+        "imageUrl": "",
+        "sellable": True,
+    },
+]
+
 DEFAULT_INVENTORY = {
     "prod-widget-001": 100,
     "prod-gadget-002": 50,
@@ -57,6 +84,18 @@ app = FastAPI(title="mock-ihms", version="0.1.0")
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/products")
+async def list_products() -> list[dict[str, Any]]:
+    return [
+        {
+            **product,
+            "availableQuantity": state.inventory.get(product["productId"], 0),
+        }
+        for product in PRODUCT_CATALOG
+        if product.get("sellable", True)
+    ]
 
 
 @app.get("/api/inventory")
@@ -115,7 +154,7 @@ async def get_hold(hold_id: str) -> JSONResponse:
     record = state.holds.get(hold_id)
     if record is None:
         return JSONResponse(status_code=404, content={"title": "Not Found", "detail": "Hold missing"})
-    if record.status != "Active":
+    if record.status == "Released":
         return JSONResponse(
             status_code=409,
             content={"title": "Conflict", "detail": "Hold expired"},
@@ -125,26 +164,27 @@ async def get_hold(hold_id: str) -> JSONResponse:
 
 @app.delete("/api/holds/{hold_id}")
 async def release_hold(hold_id: str) -> Response:
-    record = state.holds.pop(hold_id, None)
-    if record is None:
-        return Response(status_code=404)
-    if record.status == "Fulfilled":
-        return Response(status_code=409)
-    for product_id, qty in record.reserved.items():
-        state.inventory[product_id] = state.inventory.get(product_id, 0) + qty
-    return Response(status_code=204)
-
-
-@app.post("/api/holds/{hold_id}/fulfill", status_code=204)
-async def fulfill_hold(hold_id: str) -> Response:
     record = state.holds.get(hold_id)
     if record is None:
         return Response(status_code=404)
     if record.status == "Fulfilled":
-        return Response(status_code=204)
-    record.status = "Fulfilled"
+        return Response(status_code=409)
     state.holds.pop(hold_id, None)
+    if record.status != "Fulfilled":
+        for product_id, qty in record.reserved.items():
+            state.inventory[product_id] = state.inventory.get(product_id, 0) + qty
     return Response(status_code=204)
+
+
+@app.post("/api/holds/{hold_id}/fulfill")
+async def fulfill_hold(hold_id: str) -> JSONResponse:
+    record = state.holds.get(hold_id)
+    if record is None:
+        return JSONResponse(status_code=404, content={"title": "Not Found", "detail": "Hold missing"})
+    if record.status == "Fulfilled":
+        return JSONResponse(content=_hold_payload(record))
+    record.status = "Fulfilled"
+    return JSONResponse(content=_hold_payload(record))
 
 
 @app.post("/_test/reset")

@@ -92,6 +92,27 @@ body {
   gap: 0.25rem;
 }
 
+.catalog-category {
+  color: var(--accent);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.catalog-image {
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #243044;
+}
+
+.catalog-description {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .catalog-card h3 {
   margin: 0;
   font-size: 1rem;

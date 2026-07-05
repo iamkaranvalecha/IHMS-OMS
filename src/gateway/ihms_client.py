@@ -9,6 +9,7 @@ from src.gateway.ihms_models import (
     CreateHoldRequest,
     HoldResponse,
     InventoryItemResponse,
+    ProductCatalogItemResponse,
 )
 
 
@@ -64,6 +65,22 @@ class IhmsClient:
             raise map_transport_error(exc) from exc
         raise_for_ihms_response(response)
 
+    async def get_products(
+        self, headers: ObservabilityHeaders
+    ) -> list[ProductCatalogItemResponse]:
+        try:
+            response = await self._client.get(
+                f"{self._base_url}/api/products",
+                headers=headers.as_dict(),
+            )
+        except httpx.HTTPError as exc:
+            raise map_transport_error(exc) from exc
+        raise_for_ihms_response(response)
+        data = response.json()
+        if not isinstance(data, list):
+            return []
+        return [ProductCatalogItemResponse.model_validate(item) for item in data]
+
     async def get_inventory(self, headers: ObservabilityHeaders) -> list[InventoryItemResponse]:
         try:
             response = await self._client.get(
@@ -78,7 +95,9 @@ class IhmsClient:
             return []
         return [InventoryItemResponse.model_validate(item) for item in data]
 
-    async def fulfill_hold(self, hold_id: str, headers: ObservabilityHeaders) -> None:
+    async def fulfill_hold(
+        self, hold_id: str, headers: ObservabilityHeaders
+    ) -> HoldResponse | None:
         """Mark hold fulfilled — inventory stays deducted (sale committed)."""
         try:
             response = await self._client.post(
@@ -89,6 +108,9 @@ class IhmsClient:
             raise map_transport_error(exc) from exc
         if response.status_code == 404:
             if self._fulfill_optional:
-                return
+                return None
             raise_for_ihms_response(response)
         raise_for_ihms_response(response)
+        if response.status_code == 204:
+            return None
+        return HoldResponse.model_validate(response.json())

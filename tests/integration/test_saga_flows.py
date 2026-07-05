@@ -442,7 +442,6 @@ async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -
         json=_hold_body(),
     )
 
-    unrelated_order = str(uuid4())
     order_route = respx.post("http://ecops.test/orders").mock(
         side_effect=httpx.TimeoutException("timeout")
     )
@@ -452,45 +451,9 @@ async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -
     respx.get("http://ecops.test/orders").mock(
         side_effect=[
             httpx.Response(200, json=[]),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
+            httpx.Response(200, json=[]),
+            httpx.Response(200, json=[]),
+            httpx.Response(200, json=[]),
         ]
     )
     release = respx.delete("http://ihms.test/api/holds/hold-unmatched").mock(

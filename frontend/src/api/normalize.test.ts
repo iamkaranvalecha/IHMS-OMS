@@ -26,6 +26,9 @@ describe("normalizeCatalogProduct", () => {
       ecopsItemCode: "WIDGET-001",
       unitPrice: 19.99,
       availableQuantity: 42,
+      description: null,
+      imageUrl: null,
+      category: null,
     });
   });
 });

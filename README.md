@@ -88,6 +88,8 @@ Hold request body (multi-item cart):
 
 All lines are sent in a single atomic IHMS hold. Confirm maps every held line to EC-OPS order items.
 
+**Catalog sources:** Default `CATALOG_SOURCE=json` uses `catalog/products.json` (mock stack). For real KB-IHMS, set `CATALOG_SOURCE=ihms` — the orchestrator calls `GET /api/products` and maps SKUs to EC-OPS line codes via `catalog/ecops-mapping.json` (defaults to same SKU).
+
 ## Documentation map
 
 | Document | Purpose |

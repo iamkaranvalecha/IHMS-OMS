@@ -13,6 +13,21 @@ class HoldStatus(StrEnum):
     FULFILLED = "Fulfilled"
 
 
+class ProductCatalogItemResponse(BaseModel):
+    product_id: str = Field(alias="productId")
+    sku: str
+    name: str
+    description: str = ""
+    category: str = ""
+    unit_price: float = Field(alias="unitPrice")
+    currency: str = "USD"
+    available_quantity: int = Field(alias="availableQuantity")
+    image_url: str = Field(default="", alias="imageUrl")
+    sellable: bool = True
+
+    model_config = {"populate_by_name": True}
+
+
 class InventoryItemResponse(BaseModel):
     product_id: str = Field(alias="productId")
     available_quantity: int = Field(alias="availableQuantity")

@@ -47,6 +47,9 @@ class CatalogProductOut(BaseModel):
     ecops_item_code: str
     unit_price: float
     available_quantity: int | None = None
+    description: str | None = None
+    image_url: str | None = None
+    category: str | None = None
 
     @classmethod
     def from_catalog(cls, product: CatalogProduct) -> "CatalogProductOut":
@@ -68,6 +71,9 @@ class CatalogProductOut(BaseModel):
             ecops_item_code=product.ecops_item_code,
             unit_price=product.unit_price,
             available_quantity=product.available_quantity,
+            description=product.description,
+            image_url=product.image_url,
+            category=product.category,
         )
 
 

@@ -63,10 +63,13 @@ class EcOpsClient:
         headers: ObservabilityHeaders,
         *,
         status: OrderStatus | None = None,
+        client_reference: str | None = None,
     ) -> list[OrderResponse]:
         params: dict[str, str] = {}
         if status is not None:
             params["status"] = status.value
+        if client_reference is not None:
+            params["client_reference"] = client_reference
         try:
             response = await self._client.get(
                 f"{self._base_url}/orders",
@@ -83,5 +86,5 @@ class EcOpsClient:
         client_reference: str,
         headers: ObservabilityHeaders,
     ) -> OrderResponse | None:
-        orders = await self.list_orders(headers)
-        return next((order for order in orders if order.client_reference == client_reference), None)
+        orders = await self.list_orders(headers, client_reference=client_reference)
+        return orders[0] if orders else None

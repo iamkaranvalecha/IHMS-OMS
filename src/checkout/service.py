@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from src.catalog.ecops_mapping import EcopsMapping
+from src.catalog.ihms_cache import IhmsCatalogCache
 from src.catalog.inventory import (
     CatalogProductWithAvailability,
     get_product_with_inventory,
@@ -28,6 +30,8 @@ class CheckoutService:
     ecops: EcOpsClient
     idempotency: IdempotencyStore
     saga: SagaCoordinator
+    ihms_catalog_cache: IhmsCatalogCache | None = None
+    ecops_mapping: EcopsMapping | None = None
 
     @classmethod
     def create(
@@ -38,6 +42,8 @@ class CheckoutService:
         ihms: IhmsClient,
         ecops: EcOpsClient,
         idempotency: IdempotencyStore | None = None,
+        ihms_catalog_cache: IhmsCatalogCache | None = None,
+        ecops_mapping: EcopsMapping | None = None,
     ) -> "CheckoutService":
         if isinstance(sessions, LockedSessionStore):
             locked = sessions
@@ -58,6 +64,8 @@ class CheckoutService:
             ecops=ecops,
             idempotency=idem,
             saga=saga,
+            ihms_catalog_cache=ihms_catalog_cache,
+            ecops_mapping=ecops_mapping,
         )
 
     def create_session(self, correlation_id: str) -> CheckoutSession:
@@ -74,6 +82,9 @@ class CheckoutService:
         self,
         headers: ObservabilityHeaders,
     ) -> list[CatalogProductWithAvailability]:
+        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
+            return self.ihms_catalog_cache.list()
         return await list_catalog_with_inventory(self.catalog, self.ihms, headers)
 
     async def get_product_with_inventory(
@@ -81,6 +92,9 @@ class CheckoutService:
         sku: str,
         headers: ObservabilityHeaders,
     ) -> CatalogProductWithAvailability | None:
+        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
+            return self.ihms_catalog_cache.get(sku)
         return await get_product_with_inventory(self.catalog, self.ihms, sku, headers)
 
     def get_product(self, sku: str) -> CatalogProduct | None:
@@ -93,6 +107,8 @@ class CheckoutService:
         customer_name: str,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
+        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
         return await self.saga.place_hold(session_id, items, customer_name, headers)
 
     async def confirm(

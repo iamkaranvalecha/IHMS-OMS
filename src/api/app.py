@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src import __version__
 from src.api.middleware import ObservabilityMiddleware
 from src.api.routes import catalog_router, health_router, sessions_router
+from src.catalog.ecops_mapping import EcopsMapping
+from src.catalog.ihms_cache import IhmsCatalogAdapter, IhmsCatalogCache
 from src.catalog.provider import JsonCatalogProvider
 from src.checkout.service import CheckoutService
 from src.gateway.factory import gateway_clients
@@ -20,7 +22,13 @@ from src.settings import Settings, get_settings
 async def lifespan(app: FastAPI):
     """Wire gateway clients, catalog, and session store."""
     settings: Settings = app.state.settings
-    catalog = JsonCatalogProvider(settings.catalog_path)
+    ecops_mapping = EcopsMapping.from_path(settings.ecops_mapping_path)
+    ihms_catalog_cache: IhmsCatalogCache | None = None
+    if settings.catalog_source == "ihms":
+        ihms_catalog_cache = IhmsCatalogCache()
+        catalog = IhmsCatalogAdapter(ihms_catalog_cache)
+    else:
+        catalog = JsonCatalogProvider(settings.catalog_path)
     sessions = InMemorySessionStore()
 
     async with gateway_clients(settings) as (ihms, ecops):
@@ -29,6 +37,8 @@ async def lifespan(app: FastAPI):
             sessions=sessions,
             ihms=ihms,
             ecops=ecops,
+            ihms_catalog_cache=ihms_catalog_cache,
+            ecops_mapping=ecops_mapping,
         )
         yield
 
