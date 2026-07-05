@@ -39,8 +39,28 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — real-upstream env example | passed | `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (29 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
 | 2026-07-05 | Bug-finding automation — E2E port defaults | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -v --tb=short` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
+| 2026-07-05 | Bug-finding automation — cart quantity submit | passed | `cd frontend && npm test -- --run` (10 passed); `cd frontend && npm run build`; `bash scripts/verify.sh` (45 unit, 10 contract, 7 component, 23 integration); e2e skipped unless `STACK=1` |
 
 ## Session log
+
+### 2026-07-05 — Cart quantity submit bug fix
+
+**User query:** Deep bug-finding automation for PR #31; fix only critical correctness bugs.
+
+**Bug and impact:**
+- PR #31 lets shoppers edit quantity in the cart before checkout, but `CartPanel` committed that input to React state and invoked checkout in the same click event.
+- If the quantity input was still focused, the checkout mutation read the previous cart state. A customer could type quantity `5`, click "Place hold & checkout", and silently create the hold/order for quantity `1`.
+
+**Actions:**
+- Changed `CartPanel` to return the validated cart item from its quantity commit path and pass that item directly to checkout.
+- Updated `App` to submit the cart item received from `CartPanel`, avoiding reliance on same-event state flushing.
+- Added a focused CartPanel regression test for click-before-blur quantity submission.
+- Fixed strict TypeScript narrowing for nullable live inventory quantities in `CatalogGrid`.
+
+**Verification:**
+- `cd frontend && npm test -- --run` -> 10 passed.
+- `cd frontend && npm run build` -> passed.
+- `bash scripts/verify.sh` -> passed (45 unit, 10 contract, 7 component, 23 integration; e2e skipped unless `STACK=1`).
 
 ### 2026-07-05 — E2E stack port default bug fix
 
