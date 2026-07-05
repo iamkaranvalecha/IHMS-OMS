@@ -4,7 +4,7 @@ Slim agent entry point. Details live in linked docs — keep this file ≤150 li
 
 ## Mission
 
-Build the **checkout orchestrator** ([IHMS-OMS](https://github.com/iamkaranvalecha/IHMS-OMS)) — a FastAPI BFF and saga layer that integrates [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) inventory holds with [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) order lifecycle. Frozen upstreams; all integration, catalog mapping, observability, and UI live in this repo.
+Build the **checkout orchestrator** ([IHMS-OMS](https://github.com/iamkaranvalecha/IHMS-OMS)) — a FastAPI BFF and saga layer that integrates [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) inventory holds with [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) order lifecycle. Agents do not edit upstream assignment code; upstream APIs may evolve — adapt at `src/gateway/`. All integration, catalog mapping, observability, and UI live in this repo.
 
 ## Commands
 
@@ -29,6 +29,7 @@ docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
 
 - `scripts/verify.sh` must pass before PR.
 - See [.cursor/rules/03-quality.mdc](.cursor/rules/03-quality.mdc) for testing pyramid and saga rules.
+- See [.cursor/rules/05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc) when gateway, contract tests, or mocks change.
 
 ## Never do
 
@@ -41,6 +42,7 @@ docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
 ## Always do
 
 - Route upstream HTTP only through `src/gateway/`.
+- Update gateway + contract tests + mock upstreams together when wire format changes ([05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc)).
 - Update [AI-USAGE.md](AI-USAGE.md) before every PR.
 - Link/update [docs/sequences/](docs/sequences/) when checkout flows change.
 - Forward Request, Correlation, and Trace IDs per [OBSERVABILITY.md](docs/OBSERVABILITY.md).

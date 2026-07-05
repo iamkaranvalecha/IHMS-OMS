@@ -53,3 +53,5 @@ jobs:
 
       - name: Run E2E tests
         run: STACK=1 bash scripts/verify.sh
+        env:
+          ECOPS_READ_TIMEOUT: "2"

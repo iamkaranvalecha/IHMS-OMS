@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-ORDER_TIMEOUT_SLEEP_SECONDS = 30
+ORDER_TIMEOUT_HANG_SECONDS = 30
 
 
 class OrderItemIn(BaseModel):
@@ -67,7 +67,9 @@ async def create_order(body: OrderCreateBody, request: Request) -> JSONResponse:
 
     if scenario == "order-timeout":
         state.orders.append(order)
-        await asyncio.sleep(ORDER_TIMEOUT_SLEEP_SECONDS)
+        # Persist order immediately; hang response so orchestrator read-timeout fires.
+        # asyncio.sleep yields — other requests (GET /orders reconcile) stay served.
+        await asyncio.sleep(ORDER_TIMEOUT_HANG_SECONDS)
         return JSONResponse(status_code=201, content=order)
 
     state.orders.append(order)

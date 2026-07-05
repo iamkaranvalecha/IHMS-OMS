@@ -55,9 +55,13 @@ Include `correlation_id` in ProblemDetails `extensions` when available.
 
 ---
 
-## Upstream contract tests (KB-IHMS)
+## Upstream contract tests (KB-IHMS + EC-OPS)
 
-Gateway contract tests must assert IHMS wire behaviour per KB-IHMS `api-errors.mdc`:
+Gateway contract tests assert the **wire contract IHMS-OMS implements today** — the living spec for mocks and gateway code.
+
+When KB-IHMS or EC-OPS changes in the wild, update contract tests **in the same PR** as gateway and `docker/mock-upstreams/`. See [05-upstream-evolution.mdc](05-upstream-evolution.mdc).
+
+Contract tests must assert IHMS wire behaviour per KB-IHMS `api-errors.mdc`:
 
 - POST `/api/holds` → 201 + hold body; 409 insufficient stock; 422 validation
 - GET `/api/holds/{id}` → 200 active hold; 404 missing; 409 expired
@@ -91,12 +95,15 @@ http/
 ## Testing pyramid
 
 ```
-        e2e          ← compose.full.yml, real or containerized upstreams
-     integration     ← full FastAPI app, mocked gateway
-     component       ← saga + session + catalog wired, gateway mocked
-     contract        ← IHMS/EC-OPS wire format assertions
-     unit            ← pure logic, saga steps isolated
+   real upstream smoke   ← Lane 2: pinned IHMS/EC-OPS images or staging (drift detection)
+        e2e              ← Lane 1b: compose.full.yml + mock upstreams (STACK=1)
+     integration         ← full FastAPI app, mocked gateway
+     component           ← saga + session + catalog wired, gateway mocked
+     contract            ← IHMS/EC-OPS wire format assertions (living spec)
+     unit                ← pure logic, saga steps isolated
 ```
+
+**Mock e2e proves orchestrator behaviour; real upstream smoke proves compatibility.** Both have distinct value — neither replaces the other.
 
 ### Directory layout
 
@@ -114,10 +121,11 @@ tests/
 | Change | Required tests |
 |--------|----------------|
 | Saga step logic | unit |
-| Gateway request/response format | contract |
+| Gateway request/response format | contract + mock upstream if exists |
 | Checkout flow wiring | component |
 | New API route | integration |
-| Full happy/failure path | e2e (Phase 5) |
+| Full happy/failure path over HTTP | e2e (STACK=1, mocks) |
+| Upstream API upgrade / drift fix | contract + integration + e2e + **Lane 2 smoke documented** |
 
 ### Component tests (required)
 
@@ -260,7 +268,9 @@ Config: `pyproject.toml` — target Python 3.12, line length 100.
 `.github/workflows/ci.yml`:
 
 - **verify job**: every PR and push to main
-- **e2e job**: workflow_dispatch or nightly on main (`STACK=1`, continue-on-error until Phase 5)
+- **e2e job**: every PR and push — `STACK=1` against **mock upstreams** (Lane 1b)
+
+Lane 2 (real upstream smoke) is manual or scheduled — document runs in AI-USAGE. Do not block default CI on external registry availability.
 
 ---
 
@@ -305,15 +315,18 @@ Use `httpx` ASGITransport for integration; `respx` or mock gateway for component
 
 ## Mocking guidelines
 
-| Layer | Mock |
-|-------|------|
-| unit | Mock everything external |
-| contract | Mock transport; assert wire format |
-| component | Mock gateway module boundary |
-| integration | Mock gateway OR use respx/httpx mock |
-| e2e | Real services in compose |
+| Layer | Mock | Upstream drift signal? |
+|-------|------|------------------------|
+| unit | Mock everything external | No |
+| contract | Mock transport; assert wire format | Defines expected contract only |
+| component | Mock gateway module boundary | No |
+| integration | Mock gateway OR use respx/httpx mock | No |
+| e2e (STACK=1) | Mock upstreams in compose | No — orchestrator regression only |
+| real upstream smoke | Published/staging KB-IHMS + EC-OPS | **Yes** |
 
 Prefer mocking at **gateway boundary** over mocking httpx deep inside saga.
+
+When `src/gateway/` or `tests/contract/` changes, update `docker/mock-upstreams/` in the same PR ([05-upstream-evolution.mdc](05-upstream-evolution.mdc)).
 
 ---
 
@@ -326,6 +339,7 @@ Prefer mocking at **gateway boundary** over mocking httpx deep inside saga.
 - [ ] Idempotency tested for confirm
 - [ ] PERFORMANCE.md updated if timeout/retry changed
 - [ ] No `@pytest.mark.e2e` tests run in default verify (unless STACK=1)
+- [ ] Gateway + contract + mocks updated together if wire contract changed ([05-upstream-evolution.mdc](05-upstream-evolution.mdc))
 
 ---
 
@@ -336,6 +350,8 @@ Prefer mocking at **gateway boundary** over mocking httpx deep inside saga.
 - Blind retry on POST /orders without idempotency key
 - Asserting exact UUID values — assert presence/format instead
 - Real calls to IHMS/EC-OPS in unit/contract/component/integration tests
+- Treating mock E2E green as proof live upstreams still match
+- Changing gateway models without contract tests or mock upstream sync
 
 ---
 
@@ -344,3 +360,4 @@ Prefer mocking at **gateway boundary** over mocking httpx deep inside saga.
 - Architecture boundaries: [02-architecture.mdc](02-architecture.mdc)
 - Doc triggers: [04-documentation.mdc](04-documentation.mdc)
 - Workflow/PR: [01-workflow.mdc](01-workflow.mdc)
+- Upstream evolution: [05-upstream-evolution.mdc](05-upstream-evolution.mdc)

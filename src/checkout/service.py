@@ -116,3 +116,16 @@ class CheckoutService:
             correlation_id=correlation_id,
             trace_id=trace_id,
         )
+
+    def observability_for_session(
+        self,
+        session: CheckoutSession,
+        request_id: str,
+        trace_id: str,
+    ) -> ObservabilityHeaders:
+        """Outbound headers for saga steps — session correlation spans the checkout."""
+        return ObservabilityHeaders(
+            request_id=request_id,
+            correlation_id=session.correlation_id,
+            trace_id=trace_id,
+        )

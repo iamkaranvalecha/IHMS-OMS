@@ -6,10 +6,10 @@ Stable entry point for AI and human contributors. **Phase status lives in [ROADM
 
 Checkout orchestrator (IHMS-OMS): BFF, saga, catalog mapping, and UI for integrating:
 
-- [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) — inventory holds (frozen)
-- [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) — order lifecycle (frozen)
+- [KB-IHMS](https://github.com/iamkaranvalecha/KB-IHMS) — inventory holds (agents: no assignment code edits; API may evolve)
+- [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) — order lifecycle (agents: no assignment code edits; API may evolve)
 
-All integration code lives here. Never modify upstream assignment repos.
+All integration code lives here. Never modify upstream assignment repos without explicit user scope. When upstream APIs change, adapt at `src/gateway/` — see [05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc).
 
 ## Read order
 
@@ -23,7 +23,7 @@ All integration code lives here. Never modify upstream assignment repos.
 
 ## Cursor rules (mandatory)
 
-Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS `.cursor/rules/`](https://github.com/iamkaranvalecha/KB-IHMS/tree/main/.cursor/rules):
+Consolidated five-rule set (~150–250 lines each). Content merged from [KB-IHMS `.cursor/rules/`](https://github.com/iamkaranvalecha/KB-IHMS/tree/main/.cursor/rules):
 
 | Orchestrator rule | KB-IHMS sources merged |
 |-------------------|------------------------|
@@ -31,6 +31,7 @@ Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS
 | [02-architecture.mdc](.cursor/rules/02-architecture.mdc) | `architecture`, `oms-integration`, `hold-lifecycle`, `caching-events`, `frontend` |
 | [03-quality.mdc](.cursor/rules/03-quality.mdc) | `testing`, `api-errors`, `http-requests` |
 | [04-documentation.mdc](.cursor/rules/04-documentation.mdc) | `ai-documentation`, `oms-integration` doc triggers |
+| [05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc) | Orchestrator-specific — upstream drift, dual-lane testing |
 
 **Not imported** (upstream-repo specific): `dotnet-style.mdc`, `mongodb.mdc`.
 
@@ -40,6 +41,7 @@ Consolidated four-rule set (~150–250 lines each). Content merged from [KB-IHMS
 | [.cursor/rules/02-architecture.mdc](.cursor/rules/02-architecture.mdc) | Module boundaries, gateway-only upstream calls |
 | [.cursor/rules/03-quality.mdc](.cursor/rules/03-quality.mdc) | Testing pyramid, saga, observability |
 | [.cursor/rules/04-documentation.mdc](.cursor/rules/04-documentation.mdc) | Living docs, AI-USAGE, ROADMAP updates |
+| [.cursor/rules/05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc) | Upstream API drift, contract/mock sync, real smoke |
 
 ## Project board (mandatory)
 
