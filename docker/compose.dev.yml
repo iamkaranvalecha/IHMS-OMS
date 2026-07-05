@@ -9,13 +9,21 @@ services:
     ports:
       - "${ORCHESTRATOR_PORT:-8000}:8000"
     environment:
+      <<: *orchestrator-env
       IHMS_BASE_URL: ${IHMS_BASE_URL:-http://host.docker.internal:5000}
       ECOPS_BASE_URL: ${ECOPS_BASE_URL:-http://host.docker.internal:8002}
       CATALOG_PATH: /app/catalog/products.json
     volumes:
       - ../catalog:/app/catalog:ro
+    logging: *orchestrator-logging
     networks:
       - checkout-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
 
   ui:
     profiles: ["ui"]
@@ -28,6 +36,13 @@ services:
       # Relative API paths; nginx proxies to orchestrator (see frontend/nginx.conf)
       VITE_API_URL: ""
     depends_on:
-      - orchestrator
+      orchestrator:
+        condition: service_healthy
     networks:
       - checkout-net
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5173/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s

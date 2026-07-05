@@ -40,6 +40,29 @@ Configure via environment:
 | `LOG_LEVEL` | `INFO` | Root log level |
 | `LOG_JSON` | `true` | JSON vs plain text |
 
+Docker Compose sets these via `x-orchestrator-env` in `docker/compose.base.yml`. Orchestrator logs are JSON lines on stdout; use `docker compose logs orchestrator` or `bash scripts/e2e-stack.sh logs orchestrator`.
+
+## Docker observability stack
+
+Prometheus scrapes orchestrator saga counters:
+
+```bash
+bash scripts/obs-stack.sh up
+# orchestrator metrics: http://localhost:8000/metrics
+# Prometheus UI:        http://localhost:9090
+# UI proxied metrics:   http://localhost:5173/metrics
+bash scripts/obs-stack.sh down
+```
+
+Compose files:
+
+| File | Purpose |
+|------|---------|
+| `docker/compose.base.yml` | Shared env anchors (`LOG_LEVEL`, `LOG_JSON`) |
+| `docker/compose.full.yml` | Full stack with JSON logging driver |
+| `docker/compose.observability.yml` | Prometheus (`--profile obs`) |
+| `docker/prometheus/prometheus.yml` | Scrape target `orchestrator:8000/metrics` |
+
 ## Middleware
 
 `src/api/middleware.py` — `ObservabilityMiddleware` assigns IDs, binds log context, and emits `http_request` log lines with duration and status.

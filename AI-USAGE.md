@@ -44,6 +44,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 - JSON structured logging with request context (`src/observability/`)
 - Saga step logs + Prometheus counters in coordinator
 - `GET /metrics` endpoint; nginx proxy for Docker UI stack
+- Docker: compose observability profile, Prometheus scrape, obs-stack script
 - Unit tests (logging, metrics) + integration observability tests
 - ROADMAP Phase 6 complete; OBSERVABILITY.md updated
 

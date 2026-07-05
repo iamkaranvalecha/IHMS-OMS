@@ -30,6 +30,7 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 - [x] Request context binding in middleware
 - [x] Saga step logs + Prometheus counters
 - [x] `GET /metrics` endpoint
+- [x] Docker: JSON logging env, Prometheus profile, obs-stack script
 - [x] Unit + integration observability tests
 - [x] OBSERVABILITY.md updated; version 0.6.0
 

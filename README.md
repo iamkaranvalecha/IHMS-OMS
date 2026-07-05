@@ -31,8 +31,17 @@ Open http://localhost:5173
 ```bash
 bash scripts/e2e-stack.sh up
 # orchestrator http://localhost:8000  |  UI http://localhost:5173
+curl http://localhost:8000/metrics   # Prometheus counters
 STACK=1 bash scripts/verify.sh        # runs unit + integration + e2e
 bash scripts/e2e-stack.sh down
+```
+
+**Observability stack** (Prometheus scrapes `/metrics`):
+
+```bash
+bash scripts/obs-stack.sh up
+# Prometheus UI http://localhost:9090
+bash scripts/obs-stack.sh down
 ```
 
 The full stack uses **wire-compatible mock upstreams** (`docker/mock-upstreams/`) so CI and local demos do not depend on external image registries. Optional real images:
@@ -58,6 +67,7 @@ Key API routes:
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/health` | Liveness + observability IDs |
+| GET | `/metrics` | Prometheus saga counters |
 | GET | `/catalog` | Product list |
 | POST | `/sessions` | Start checkout session |
 | POST | `/sessions/{id}/hold` | Reserve inventory |
@@ -88,7 +98,13 @@ docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
 
 # Full stack demo + E2E
 docker compose -f docker/compose.base.yml -f docker/compose.full.yml up --build
+
+# Full stack + Prometheus (Phase 6 observability)
+docker compose -f docker/compose.base.yml -f docker/compose.full.yml \
+  -f docker/compose.observability.yml --profile obs up --build
 ```
+
+Orchestrator containers default to `LOG_JSON=true` (structured JSON on stdout). UI nginx proxies `/health` and `/metrics`.
 
 ## Project tracking
 
