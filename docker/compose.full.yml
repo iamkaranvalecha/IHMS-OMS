@@ -10,6 +10,17 @@
 #   ECOPS_IMAGE=ghcr.io/iamkaranvalecha/ec-ops:latest \
 #   docker compose -f docker/compose.base.yml -f docker/compose.full.yml up
 
+x-orchestrator-env: &orchestrator-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: ${LOG_JSON:-true}
+  CATALOG_PATH: ${CATALOG_PATH:-/app/catalog/products.json}
+
+x-orchestrator-logging: &orchestrator-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   ihms:
     build:

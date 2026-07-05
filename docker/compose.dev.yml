@@ -1,6 +1,17 @@
 # Orchestrator-only dev stack. Upstreams started separately or mocked.
 # Usage: docker compose -f docker/compose.base.yml -f docker/compose.dev.yml up
 
+x-orchestrator-env: &orchestrator-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_JSON: ${LOG_JSON:-true}
+  CATALOG_PATH: ${CATALOG_PATH:-/app/catalog/products.json}
+
+x-orchestrator-logging: &orchestrator-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   orchestrator:
     build:
