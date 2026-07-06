@@ -74,6 +74,7 @@ CMD wrappers (double-click or `cmd.exe`): `scripts\full-stack.cmd`, `scripts\rea
 | Port already in use | Change `ORCHESTRATOR_PORT` / `UI_PORT` in `.env` |
 | Script execution disabled | Use `-ExecutionPolicy Bypass` (wrappers do this) or `Set-ExecutionPolicy RemoteSigned` |
 | Real upstream `.env` breaks mock stack | Run `.\scripts\mock-stack.ps1 -Check` before `docker compose up` |
+| `Join-Path` / `$LASTEXITCODE` errors | Scripts support **Windows PowerShell 5.1** (built-in) and PowerShell 7+ (`pwsh`) |
 
 ## Real KB-IHMS + EC-OPS (demo / interview)
 

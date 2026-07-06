@@ -51,9 +51,9 @@ if (-not $ihmsPath) {
 Write-Host "    OK: GET http://localhost:5000${ihmsPath}"
 
 Write-Host "==> Checking orchestrator can reach IHMS from Docker (host.docker.internal:5000)"
-$dockerTest = & docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl:8.12.1 `
+$null = & docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl:8.12.1 `
     -fsS --connect-timeout 3 "http://host.docker.internal:5000${ihmsPath}" 2>$null
-if ($LASTEXITCODE -ne 0) {
+if (-not $?) {
     Write-Warning "host.docker.internal:5000 not reachable from a test container."
     Write-Warning "Ensure Docker Desktop is running and docker compose extra_hosts includes host.docker.internal."
 }
