@@ -28,19 +28,82 @@
   ],
   "tasks": [
     {
-      "label": "Docker: Start full mock stack",
+      "label": "Cursor: Quick start mock stack (background)",
+      "detail": "Detached Docker stack — keep coding while services run",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/full-stack.ps1"
-      ],
+      "command": "bash scripts/dev-up.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/dev-up.ps1"
+        ]
+      },
       "group": {
         "kind": "build",
         "isDefault": true
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Cursor: Quick start mock + open UI",
+      "detail": "Background stack, then open http://localhost:5180",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Cursor: Quick start mock stack (background)",
+        "Open: Checkout UI"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Cursor: Real dev environment (full)",
+      "detail": "KB-IHMS + EC-OPS upstreams, orchestrator detached, health check, open UI",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Upstreams: Start KB-IHMS + EC-OPS",
+        "Docker: Start real upstream (background)",
+        "Health: Verify stack",
+        "Open: Checkout UI"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Cursor: Stop stack",
+      "detail": "docker compose down — use after mock or real orchestrator sessions",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Docker: Stop stack"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Start full mock stack (foreground)",
+      "detail": "Blocking logs in terminal — good for debugging startup",
+      "type": "shell",
+      "command": "bash scripts/full-stack.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/full-stack.ps1"
+        ]
+      },
+      "runOptions": {
+        "instanceLimit": 1
       },
       "presentation": {
         "reveal": "always",
@@ -52,14 +115,17 @@
     {
       "label": "Docker: Start mock stack (foreground)",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/mock-stack.ps1"
-      ],
+      "command": "bash scripts/mock-stack.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/mock-stack.ps1"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "dedicated"
@@ -69,14 +135,17 @@
     {
       "label": "Docker: Stop stack",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/stop-stack.ps1"
-      ],
+      "command": "bash scripts/e2e-stack.sh down",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/stop-stack.ps1"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -86,15 +155,18 @@
     {
       "label": "Docker: Stop stack (remove volumes)",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/stop-stack.ps1",
-        "-Volumes"
-      ],
+      "command": "docker compose down -v --remove-orphans",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/stop-stack.ps1",
+          "-Volumes"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -102,16 +174,55 @@
       "problemMatcher": []
     },
     {
+      "label": "Docker: View orchestrator logs",
+      "type": "shell",
+      "command": "docker compose logs -f orchestrator",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Upstreams: Start KB-IHMS + EC-OPS",
+      "detail": "Sibling repos in ../KB-IHMS and ../EC-OPS (prompted)",
+      "type": "shell",
+      "command": "KB_IHMS_PATH='${input:kbIhmsPath}' EC_OPS_PATH='${input:ecOpsPath}' bash scripts/start-upstreams.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/start-upstreams.ps1",
+          "-KbIhmsPath",
+          "${input:kbIhmsPath}",
+          "-EcOpsPath",
+          "${input:ecOpsPath}"
+        ]
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "EC-OPS: Fetch bearer token",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/ecops-token.ps1'"
-      ],
+      "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/ecops-token.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/ecops-token.ps1'"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -121,15 +232,18 @@
     {
       "label": "Docker: Check real upstreams",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/scripts/real-upstream.ps1",
-        "-Check"
-      ],
+      "command": "bash scripts/real-upstream.sh --check",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/real-upstream.ps1",
+          "-Check"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -137,16 +251,22 @@
       "problemMatcher": []
     },
     {
-      "label": "Docker: Start real upstream orchestrator",
+      "label": "Docker: Start real upstream (foreground)",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1'"
-      ],
+      "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/real-upstream.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1'"
+        ]
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      },
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
@@ -155,60 +275,46 @@
       "problemMatcher": []
     },
     {
-      "label": "KB-IHMS: Start upstream Docker",
+      "label": "Docker: Start real upstream (background)",
+      "detail": "Orchestrator + UI detached after upstream checks and EC-OPS token",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "Set-Location '${workspaceFolder}/${input:kbIhmsPath}'; Write-Host '==> Starting KB-IHMS at http://localhost:5000'; docker compose up -d --build"
-      ],
+      "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/real-upstream.sh --detached",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1' -Detached"
+        ]
+      },
+      "runOptions": {
+        "instanceLimit": 1
+      },
       "presentation": {
         "reveal": "always",
-        "panel": "dedicated"
+        "panel": "shared"
       },
       "problemMatcher": []
     },
     {
-      "label": "EC-OPS: Start upstream Docker",
+      "label": "Health: Verify stack",
+      "detail": "Orchestrator /health/upstreams + catalog preview",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "Set-Location '${workspaceFolder}/${input:ecOpsPath}'; Write-Host '==> Starting EC-OPS at http://localhost:8002'; docker compose up -d --build"
-      ],
+      "command": "bash scripts/health-check.sh",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/health-check.ps1"
+        ]
+      },
       "presentation": {
         "reveal": "always",
-        "panel": "dedicated"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Real stack: Start all upstreams + orchestrator",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "KB-IHMS: Start upstream Docker",
-        "EC-OPS: Start upstream Docker",
-        "Docker: Start real upstream orchestrator"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Open: Checkout UI",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "Start-Process 'http://localhost:5180'"
-      ],
-      "presentation": {
-        "reveal": "never",
         "panel": "shared"
       },
       "problemMatcher": []
@@ -216,12 +322,15 @@
     {
       "label": "Health: Orchestrator upstreams",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "Invoke-RestMethod 'http://localhost:8000/health/upstreams' | ConvertTo-Json -Depth 6"
-      ],
+      "command": "curl -fsS http://localhost:8000/health/upstreams | python3 -m json.tool",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "Invoke-RestMethod 'http://localhost:8000/health/upstreams' | ConvertTo-Json -Depth 6"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -231,12 +340,15 @@
     {
       "label": "Health: Catalog preview",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "Invoke-RestMethod 'http://localhost:8000/catalog' | ConvertTo-Json -Depth 4"
-      ],
+      "command": "curl -fsS http://localhost:8000/catalog | python3 -m json.tool",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "Invoke-RestMethod 'http://localhost:8000/catalog' | ConvertTo-Json -Depth 4"
+        ]
+      },
       "presentation": {
         "reveal": "always",
         "panel": "shared"
@@ -244,16 +356,66 @@
       "problemMatcher": []
     },
     {
+      "label": "Open: Checkout UI",
+      "type": "shell",
+      "command": "xdg-open http://localhost:5180 || open http://localhost:5180",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "Start-Process 'http://localhost:5180'"
+        ]
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Open: Orchestrator Swagger",
+      "type": "shell",
+      "command": "xdg-open http://localhost:8000/docs || open http://localhost:8000/docs",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "Start-Process 'http://localhost:8000/docs'"
+        ]
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Docker: Start stack with Prometheus",
       "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        "& '${workspaceFolder}/scripts/mock-stack.ps1' -Check; docker compose --profile obs up --build --wait"
-      ],
+      "command": "bash scripts/mock-stack.sh --check && docker compose --profile obs up --build --wait",
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          "& '${workspaceFolder}/scripts/mock-stack.ps1' -Check; docker compose --profile obs up --build --wait"
+        ]
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify: Run tests (no E2E)",
+      "detail": "Same as CI unit/contract/component/integration tiers",
+      "type": "shell",
+      "command": "bash scripts/verify.sh",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated"

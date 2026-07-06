@@ -19,31 +19,37 @@ Prometheus: `docker compose --profile obs up --build` → http://localhost:9090
 
 E2E tests: `STACK=1 bash scripts/verify.sh` (uses `scripts/e2e-stack.sh` internally)
 
-## Windows (PowerShell / VS Code)
+## Windows / Cursor dev environment
 
 Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows.
 
-### VS Code tasks (recommended)
+### Cursor / VS Code tasks (recommended)
 
-Open **Terminal → Run Task…** (or `Ctrl+Shift+P` → **Tasks: Run Task**):
+**`Ctrl+Shift+P` → Tasks: Run Task** (same in Cursor and VS Code):
 
 | Task | Purpose |
 |------|---------|
-| **Docker: Start full mock stack** | Mock IHMS + mock EC-OPS + orchestrator + UI (default build task) |
-| **Docker: Stop stack** | `docker compose down` |
-| **Real stack: Start all upstreams + orchestrator** | KB-IHMS + EC-OPS sibling repos, then orchestrator + UI |
+| **Cursor: Quick start mock + open UI** | Best first run — detached stack + browser |
+| **Cursor: Quick start mock stack (background)** | Default build task — stack runs while you code |
+| **Cursor: Real dev environment (full)** | KB-IHMS + EC-OPS + orchestrator + health + UI |
+| **Cursor: Stop stack** | `docker compose down` |
+| **Health: Verify stack** | `/health/upstreams` + catalog preview |
 | **EC-OPS: Fetch bearer token** | Writes `ECOPS_BEARER_TOKEN` to `.env` |
-| **Health: Orchestrator upstreams** | `GET /health/upstreams` |
-| **Open: Checkout UI** | Opens http://localhost:5180 |
+| **Docker: View orchestrator logs** | Follow orchestrator container logs |
 
-Sibling repo paths default to `../KB-IHMS` and `../EC-OPS` (prompted when you run those tasks).
+Tasks are cross-platform: PowerShell on Windows, bash on Linux/macOS. See [.cursor/rules/06-docker-dev.mdc](../.cursor/rules/06-docker-dev.mdc) for agents.
+
+Sibling repo paths default to `../KB-IHMS` and `../EC-OPS` (prompted when you run upstream tasks).
 
 ### PowerShell scripts
 
 From the repo root in PowerShell:
 
 ```powershell
-# Full mock stack (everything in Docker — no sibling repos)
+# Quick start (detached — recommended in Cursor)
+.\scripts\dev-up.ps1 -OpenUi
+
+# Foreground logs (debugging)
 .\scripts\full-stack.ps1
 
 # Real KB-IHMS + EC-OPS on host, orchestrator + UI in Docker

@@ -8,17 +8,20 @@
 # Usage:
 #   ECOPS_USERNAME=admin ECOPS_PASSWORD=secret bash scripts/real-upstream.sh
 #   bash scripts/real-upstream.sh --check    # verify upstreams only, do not start
+#   bash scripts/real-upstream.sh --detached # background orchestrator + UI
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 CHECK_ONLY=0
+DETACHED=0
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK_ONLY=1 ;;
+    --detached) DETACHED=1 ;;
     --help|-h)
-      echo "Usage: $0 [--check]"
+      echo "Usage: $0 [--check] [--detached]"
       echo "  Ensures .env is configured for real upstreams, fetches EC-OPS JWT, starts orchestrator + UI."
       exit 0
       ;;
@@ -101,4 +104,19 @@ echo "==> Starting orchestrator + UI (real upstream mode)"
 echo "    Catalog: IHMS GET ${IHMS_CHECK_PATH}"
 echo "    UI:      http://localhost:5180"
 echo "    API:     http://localhost:8000/catalog"
-docker compose up orchestrator ui --no-deps --build
+if [[ "$DETACHED" == "1" ]]; then
+  docker compose up orchestrator ui --no-deps --build -d --wait
+  ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-8000}"
+  UI_PORT="${UI_PORT:-5180}"
+  for i in $(seq 1 60); do
+    curl -fsS "http://localhost:${ORCHESTRATOR_PORT}/health" >/dev/null 2>&1 && break
+    sleep 2
+  done
+  for i in $(seq 1 60); do
+    curl -fsS "http://localhost:${UI_PORT}/health" >/dev/null 2>&1 && break
+    sleep 2
+  done
+  echo "==> Stack ready (real upstream, background)"
+else
+  docker compose up orchestrator ui --no-deps --build
+fi

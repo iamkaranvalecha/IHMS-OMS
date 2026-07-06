@@ -9,6 +9,7 @@
 #   .\scripts\real-upstream.ps1 -Check    # verify upstreams only, do not start
 param(
     [switch]$Check,
+    [switch]$Detached,
     [switch]$Help
 )
 
@@ -79,4 +80,11 @@ Write-Host "==> Starting orchestrator + UI (real upstream mode)"
 Write-Host "    Catalog: IHMS GET ${ihmsPath}"
 Write-Host "    UI:      http://localhost:5180"
 Write-Host "    API:     http://localhost:8000/catalog"
-Invoke-DockerCompose up orchestrator ui --no-deps --build
+if ($Detached) {
+    Invoke-DockerCompose up orchestrator ui --no-deps --build -d --wait
+    Wait-MockStackHealthy
+    Write-StackSummary -Mode "real upstream (background)"
+}
+else {
+    Invoke-DockerCompose up orchestrator ui --no-deps --build
+}

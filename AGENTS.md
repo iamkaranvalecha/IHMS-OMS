@@ -23,7 +23,7 @@ All integration code lives here. Never modify upstream assignment repos without 
 
 ## Cursor rules (mandatory)
 
-Consolidated five-rule set (~150–250 lines each). Content merged from [KB-IHMS `.cursor/rules/`](https://github.com/iamkaranvalecha/KB-IHMS/tree/main/.cursor/rules):
+Consolidated six-rule set (~150–250 lines each). Content merged from [KB-IHMS `.cursor/rules/`](https://github.com/iamkaranvalecha/KB-IHMS/tree/main/.cursor/rules):
 
 | Orchestrator rule | KB-IHMS sources merged |
 |-------------------|------------------------|
@@ -32,6 +32,7 @@ Consolidated five-rule set (~150–250 lines each). Content merged from [KB-IHMS
 | [03-quality.mdc](.cursor/rules/03-quality.mdc) | `testing`, `api-errors`, `http-requests` |
 | [04-documentation.mdc](.cursor/rules/04-documentation.mdc) | `ai-documentation`, `oms-integration` doc triggers |
 | [05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc) | Orchestrator-specific — upstream drift, dual-lane testing |
+| [06-docker-dev.mdc](.cursor/rules/06-docker-dev.mdc) | Orchestrator-specific — Docker/Cursor dev tasks, Windows scripts |
 
 **Not imported** (upstream-repo specific): `dotnet-style.mdc`, `mongodb.mdc`.
 
@@ -42,6 +43,7 @@ Consolidated five-rule set (~150–250 lines each). Content merged from [KB-IHMS
 | [.cursor/rules/03-quality.mdc](.cursor/rules/03-quality.mdc) | Testing pyramid, saga, observability |
 | [.cursor/rules/04-documentation.mdc](.cursor/rules/04-documentation.mdc) | Living docs, AI-USAGE, ROADMAP updates |
 | [.cursor/rules/05-upstream-evolution.mdc](.cursor/rules/05-upstream-evolution.mdc) | Upstream API drift, contract/mock sync, real smoke |
+| [.cursor/rules/06-docker-dev.mdc](.cursor/rules/06-docker-dev.mdc) | Docker dev tasks, Windows/Cursor workflow |
 
 ## Project board (mandatory)
 
@@ -66,6 +68,11 @@ STACK=1 bash scripts/verify.sh
 
 # Docker full stack
 docker compose up --build
+
+# Cursor / Windows quick start (detached mock stack)
+# Task: Cursor: Quick start mock + open UI
+# Or: .\scripts\dev-up.ps1 -OpenUi   (PowerShell)
+# Or: bash scripts/dev-up.sh --open-ui
 ```
 
 ## Workflow

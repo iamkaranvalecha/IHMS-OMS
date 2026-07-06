@@ -117,3 +117,79 @@ function Invoke-DockerCompose {
         throw "docker compose failed (exit $LASTEXITCODE): docker compose $($Args -join ' ')"
     }
 }
+
+function Get-StackPorts {
+    Import-DotEnv
+    [PSCustomObject]@{
+        Orchestrator = if ($env:ORCHESTRATOR_PORT) { $env:ORCHESTRATOR_PORT } else { "8000" }
+        Ui           = if ($env:UI_PORT) { $env:UI_PORT } else { "5180" }
+        Ihms         = if ($env:IHMS_PORT) { $env:IHMS_PORT } else { "8080" }
+        Ecops        = if ($env:ECOPS_PORT) { $env:ECOPS_PORT } else { "8012" }
+    }
+}
+
+function Wait-UrlReady {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Url,
+        [string]$Label = $Url,
+        [int]$Attempts = 60,
+        [int]$DelaySec = 2
+    )
+
+    for ($i = 1; $i -le $Attempts; $i++) {
+        if (Test-UrlReachable -Url $Url -TimeoutSec 3) {
+            Write-Host "==> $Label ready at $Url"
+            return
+        }
+        Start-Sleep -Seconds $DelaySec
+    }
+
+    throw "$Label not ready at $Url after $($Attempts * $DelaySec)s"
+}
+
+function Wait-MockStackHealthy {
+    param([int]$Attempts = 60)
+
+    $ports = Get-StackPorts
+    Wait-UrlReady -Url "http://localhost:$($ports.Orchestrator)/health" -Label "orchestrator" -Attempts $Attempts
+    Wait-UrlReady -Url "http://localhost:$($ports.Ui)/health" -Label "checkout-ui" -Attempts $Attempts
+}
+
+function Wait-RealUpstreamsHealthy {
+    param([int]$Attempts = 90)
+
+    $ihmsPath = Test-IhmsCatalogReachable -BaseUrl "http://localhost:5000"
+    if (-not $ihmsPath) {
+        throw "KB-IHMS not reachable on http://localhost:5000"
+    }
+    Write-Host "==> KB-IHMS ready at http://localhost:5000$ihmsPath"
+
+    foreach ($url in @("http://localhost:8002/health", "http://localhost:8002/docs")) {
+        if (Test-UrlReachable -Url $url) {
+            Write-Host "==> EC-OPS ready at $url"
+            return
+        }
+    }
+    throw "EC-OPS not reachable on http://localhost:8002"
+}
+
+function Open-CheckoutUi {
+    $ports = Get-StackPorts
+    $url = "http://localhost:$($ports.Ui)"
+    Write-Host "==> Opening $url"
+    Start-Process $url
+}
+
+function Write-StackSummary {
+    param([string]$Mode = "mock")
+
+    $ports = Get-StackPorts
+    Write-Host ""
+    Write-Host "==> Stack ready ($Mode)"
+    Write-Host "    UI:  http://localhost:$($ports.Ui)"
+    Write-Host "    API: http://localhost:$($ports.Orchestrator)/catalog"
+    Write-Host "    Trace: http://localhost:$($ports.Orchestrator)/health/upstreams"
+    Write-Host ""
+    Write-Host "Place order: open UI, add to cart, click Place order"
+}
