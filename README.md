@@ -8,15 +8,27 @@
 | [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) | FastAPI order management system (frozen) |
 | **IHMS-OMS** (this repo) | BFF, saga, CatalogProvider, UI, ADRs, observability |
 
-## Quick start (Docker)
+## Quick start (IDE — recommended)
+
+Open this repo in **VS Code or Cursor**, then **`Ctrl+Shift+P` → Tasks: Run Task**:
+
+| Task | When to use |
+|------|-------------|
+| **Cursor: Quick start mock + open UI** | First run — full mock stack + checkout UI at http://localhost:5180 |
+| **Cursor: Real dev environment (full)** | Live KB-IHMS + EC-OPS from sibling repos + orchestrator |
+| **Cursor: Stop stack** | Tear down Docker |
+
+No terminal commands required for day-to-day use. Task list: `.vscode/tasks.json` · details: [docs/DOCKER.md](docs/DOCKER.md)
+
+## Quick start (Docker CLI)
 
 From the repository root:
+
+**Windows / Cursor:** prefer the IDE tasks above over raw CLI — `pwsh` scripts mirror every task.
 
 ```bash
 docker compose up --build
 ```
-
-**Windows / Cursor:** run task **Cursor: Quick start mock + open UI**, or `.\scripts\dev-up.ps1 -OpenUi` (see [docs/DOCKER.md](docs/DOCKER.md)).
 
 | Service | URL |
 |---------|-----|
