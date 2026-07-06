@@ -68,13 +68,8 @@ function Import-DotEnv {
 function Get-HostReachableUrl {
     param([string]$Url)
 
-    if ($Url -match '^https://host\.docker\.internal(?::\d+)?(.*)$') {
-        return "https://localhost$($matches[1])"
-    }
-    if ($Url -match '^http://host\.docker\.internal(?::\d+)?(.*)$') {
-        return "http://localhost$($matches[1])"
-    }
-    return $Url
+    # host.docker.internal:8002 -> localhost:8002 (keep port and path)
+    return $Url -replace 'host\.docker\.internal', 'localhost'
 }
 
 function Test-UrlReachable {

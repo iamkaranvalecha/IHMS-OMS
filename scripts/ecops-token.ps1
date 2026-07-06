@@ -49,6 +49,7 @@ if (-not $password) {
 }
 
 try {
+    Write-Host "==> POST ${ecopsUrl}/auth/token"
     $response = Invoke-RestMethod `
         -Uri "$ecopsUrl/auth/token" `
         -Method Post `
