@@ -102,6 +102,7 @@ All lines are sent in a single atomic IHMS hold. Confirm maps every held line to
 | [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) | Failure matrix |
 | [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Request / Correlation / Trace IDs |
 | [docs/DOCKER.md](docs/DOCKER.md) | Deploy stack vs mock E2E |
+| [docs/EC-OPS-UPSTREAM.md](docs/EC-OPS-UPSTREAM.md) | EC-OPS PR #24 orchestrator contract |
 | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Timeouts, retries, pooling |
 | [docs/sequences/](docs/sequences/) | Per-flow sequence diagrams |
 | [docs/adr/](docs/adr/) | Architectural decision records |

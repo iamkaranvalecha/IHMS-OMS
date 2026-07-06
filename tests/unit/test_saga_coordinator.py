@@ -355,6 +355,32 @@ async def test_concurrent_duplicate_confirm_creates_single_order(
 
 
 @pytest.mark.asyncio
+async def test_reconcile_after_client_reference_409(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.create_order.side_effect = UpstreamError(
+        UpstreamProblem(status_code=409, detail="client_reference 'corr-unit' is already in use")
+    )
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-409-reconcile", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+
+
+@pytest.mark.asyncio
 async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: ObservabilityHeaders) -> None:
     session = _held_session()
     saga.sessions.save(session)

@@ -141,6 +141,43 @@ async def test_ecops_create_order_request_shape(ecops_client: EcOpsClient) -> No
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_ecops_create_order_idempotent_replay_returns_200(ecops_client: EcOpsClient) -> None:
+    order_id = str(uuid4())
+    order_body = {
+        "id": order_id,
+        "customer_name": "Test Customer",
+        "status": "PENDING",
+        "created_at": datetime.now(UTC).isoformat(),
+        "updated_at": None,
+        "client_reference": "corr-replay",
+        "items": [
+            {
+                "id": str(uuid4()),
+                "order_id": order_id,
+                "product_name": "WIDGET-001",
+                "quantity": 1,
+                "price": "19.99",
+            }
+        ],
+    }
+    route = respx.post("http://ecops.test/orders").mock(
+        return_value=httpx.Response(200, json=order_body)
+    )
+
+    payload = OrderCreate(
+        customer_name="Test Customer",
+        client_reference="corr-replay",
+        items=[OrderItemCreate(product_name="WIDGET-001", quantity=1, price=Decimal("19.99"))],
+    )
+    result = await ecops_client.create_order(payload, OBS, idempotency_key="idem-replay")
+
+    assert route.called
+    assert str(result.id) == order_id
+    assert result.client_reference == "corr-replay"
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_ecops_list_orders_query_param(ecops_client: EcOpsClient) -> None:
     respx.get("http://ecops.test/orders").mock(return_value=httpx.Response(200, json=[]))
 

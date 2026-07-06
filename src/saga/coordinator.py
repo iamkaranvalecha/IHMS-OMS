@@ -330,6 +330,12 @@ class SagaCoordinator:
         try:
             order = await self.ecops.create_order(payload, headers, idempotency_key=idempotency_key)
             return order, False
+        except UpstreamError as exc:
+            if exc.problem.status_code == 409:
+                order = await find_order_by_reference(self.ecops, client_reference, headers)
+                if order is not None:
+                    return order, True
+            raise
         except GatewayTimeoutError as create_timeout:
             try:
                 order = await find_order_by_reference(self.ecops, client_reference, headers)

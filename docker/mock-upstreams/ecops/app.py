@@ -92,7 +92,14 @@ async def create_order(
     if scenario == "order-error":
         return JSONResponse(status_code=500, content={"detail": "Order failed"})
 
-    order = _build_order(body, body.client_reference or correlation_id)
+    client_reference = body.client_reference
+    if any(order.get("client_reference") == client_reference for order in state.orders):
+        return JSONResponse(
+            status_code=409,
+            content={"detail": f"client_reference '{client_reference}' is already in use"},
+        )
+
+    order = _build_order(body, client_reference)
     order["_request_hash"] = request_hash
 
     if scenario == "order-timeout":

@@ -25,12 +25,14 @@ Start upstreams from their repos first, then one command:
 
 ```bash
 # KB-IHMS: cd ../KB-IHMS && docker compose up -d
-# EC-OPS:  cd ../EC-OPS && uv run python -m src.main
+# EC-OPS:  cd ../EC-OPS && docker compose up -d --build   # PR #24: auto-migrate + seed admin
 
-ECOPS_USERNAME=admin ECOPS_PASSWORD=secret bash scripts/real-upstream.sh
+ECOPS_USERNAME=admin ECOPS_PASSWORD='Password1!' bash scripts/real-upstream.sh
 ```
 
-This creates/updates `.env` (`CATALOG_SOURCE=ihms`, upstream URLs), fetches the EC-OPS JWT, and starts orchestrator + UI only.
+EC-OPS PR #24 requires migrations **0005** and **0006** (applied automatically in Docker). See [docs/EC-OPS-UPSTREAM.md](EC-OPS-UPSTREAM.md) for the full orchestrator contract.
+
+This creates/updates `.env` (`CATALOG_SOURCE=ihms`, `CATALOG_FALLBACK_TO_JSON=false`, upstream URLs), fetches the EC-OPS JWT, and starts orchestrator + UI only.
 
 Verify catalog shows real IHMS products:
 
