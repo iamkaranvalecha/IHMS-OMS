@@ -88,7 +88,9 @@ async def upstream_health(request: Request) -> dict[str, object]:
                 )
             ecops_status["auth_ok"] = auth_response.status_code != 401
             if auth_response.status_code == 401:
-                ecops_status["auth_error"] = "Invalid or expired credentials - re-run ecops-token and recreate orchestrator"
+                ecops_status["auth_error"] = (
+                    "Invalid or expired credentials - re-run ecops-token and recreate orchestrator"
+                )
         except Exception as exc:
             ecops_status["auth_ok"] = False
             ecops_status["auth_error"] = str(exc)
