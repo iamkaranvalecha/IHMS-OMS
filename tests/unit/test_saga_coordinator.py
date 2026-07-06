@@ -31,7 +31,7 @@ from src.saga.exceptions import (
     OrderStatusUnknownError,
     SessionNotFoundError,
 )
-from src.saga.idempotency import InMemoryIdempotencyStore
+from src.saga.idempotency import IdempotencyRecord, InMemoryIdempotencyStore
 from src.session.models import CheckoutSession, SessionLineItem, SessionState
 from src.session.store import InMemorySessionStore, LockedSessionStore
 
@@ -355,6 +355,32 @@ async def test_concurrent_duplicate_confirm_creates_single_order(
 
 
 @pytest.mark.asyncio
+async def test_reconcile_after_client_reference_409(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session()
+    saga.sessions.save(session)
+    order_id = uuid4()
+    saga.ecops.create_order.side_effect = UpstreamError(
+        UpstreamProblem(status_code=409, detail="client_reference 'corr-unit' is already in use")
+    )
+    saga.ecops.find_order_by_client_reference.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Test Customer",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-unit",
+    )
+
+    result = await saga.confirm(session.session_id, None, "idem-409-reconcile", obs)
+
+    assert result.session.state == SessionState.RECONCILED
+    assert result.session.order_id == str(order_id)
+
+
+@pytest.mark.asyncio
 async def test_reconcile_after_timeout(saga: SagaCoordinator, obs: ObservabilityHeaders) -> None:
     session = _held_session()
     saga.sessions.save(session)
@@ -627,3 +653,79 @@ async def test_place_hold_merges_duplicate_skus(
     assert len(result.line_items) == 1
     assert result.line_items[0].quantity == 3
     assert saga.ihms.create_hold.await_args.args[0][0].quantity == 3
+
+
+@pytest.mark.asyncio
+async def test_place_order_from_created_runs_hold_then_confirm(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = CheckoutSession(correlation_id="corr-place", state=SessionState.CREATED)
+    saga.sessions.save(session)
+    saga.ihms.create_hold.return_value = HoldResponse(
+        hold_id="hold-place",
+        status=HoldStatus.ACTIVE,
+        items=[HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=1)],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    saga.ihms.get_hold.return_value = HoldResponse(
+        hold_id="hold-place",
+        status=HoldStatus.ACTIVE,
+        items=[HoldItemResponse(product_id="prod-widget-001", name="Widget", quantity=1)],
+        created_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+    order_id = str(uuid4())
+    saga.ecops.create_order.return_value = OrderResponse(
+        id=order_id,
+        customer_name="Guest",
+        status=OrderStatus.PENDING,
+        created_at=datetime.now(UTC),
+        updated_at=None,
+        items=[],
+        client_reference="corr-place",
+    )
+
+    result = await saga.place_order(
+        session.session_id,
+        [("WIDGET-001", 1)],
+        "Guest",
+        "idem-place-unit",
+        obs,
+    )
+
+    assert result.session.state == SessionState.CONFIRMED
+    assert result.session.order_id == order_id
+    assert result.from_cache is False
+    saga.ihms.create_hold.assert_awaited_once()
+    saga.ecops.create_order.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_place_order_idempotency_returns_cached_result(
+    saga: SagaCoordinator, obs: ObservabilityHeaders
+) -> None:
+    session = _held_session("corr-cached")
+    saga.sessions.save(session)
+    saga.idempotency.put(
+        session.session_id,
+        "idem-cached",
+        IdempotencyRecord(
+            status_code=200,
+            body={"state": SessionState.CONFIRMED.value},
+            order_id="order-cached",
+        ),
+    )
+
+    result = await saga.place_order(
+        session.session_id,
+        [("WIDGET-001", 1)],
+        "Guest",
+        "idem-cached",
+        obs,
+    )
+
+    assert result.from_cache is True
+    assert result.session.order_id == "order-cached"
+    assert result.session.state == SessionState.CONFIRMED
+    saga.ecops.create_order.assert_not_awaited()

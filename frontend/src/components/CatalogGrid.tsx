@@ -31,8 +31,15 @@ export function CatalogGrid({ products, cart, onAdd, disabled }: CatalogGridProp
           };
           return (
             <li key={product.sku} className="catalog-card">
+              {product.category && <span className="catalog-category">{product.category}</span>}
+              {product.imageUrl ? (
+                <img className="catalog-image" src={product.imageUrl} alt={product.name} />
+              ) : null}
               <h3>{product.name}</h3>
               <p className="sku">{product.sku}</p>
+              {product.description ? (
+                <p className="catalog-description">{product.description}</p>
+              ) : null}
               <p className="price">{formatCurrency(product.unitPrice)}</p>
               <p className={outOfStock ? "stock stock-out" : "stock"}>
                 {stockUnknown

@@ -38,6 +38,7 @@ Mandatory transparency for every PR in checkout-orchestrator. No separate `AI-DE
 | 2026-07-05 | Bug-finding automation — mock E2E env isolation | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -q` (1 passed); `python3 -m pytest tests/unit/test_ecops_token_script.py -q` (3 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); `STACK=1 bash scripts/verify.sh` reached Docker startup after non-Docker tiers passed, then stopped because `docker` CLI is unavailable in this runner |
 | 2026-07-05 | Bug-finding automation — E2E port defaults | passed | `python3 -m pytest tests/unit/test_e2e_stack_script.py -v --tb=short` (1 passed); `bash scripts/verify.sh` (30 unit, 7 contract, 7 component, 20 integration); e2e skipped unless `STACK=1` |
 | 2026-07-05 | Cloud Agent — PR #34 consolidated checkout | passed | `bash scripts/verify.sh` (47 unit, 24 integration); `cd frontend && npm test && npm run build` (17 Vitest); CI e2e green; supersedes PRs #31–#35 |
+| 2026-07-06 | Cloud Agent — full workflow tests + docs hub | passed | verify.sh 53 unit + 34 integration; +7 workflow integration, +5 e2e; docs/index.md, WORKFLOWS.md, DESIGN-DECISIONS.md; v0.11.0 |
 
 ## Session log
 

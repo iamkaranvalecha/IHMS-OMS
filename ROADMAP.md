@@ -6,9 +6,9 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 
 ---
 
-## Current phase: Complete — single docker-compose.yml (2026-07-05)
+## Current phase: v0.11 — real upstream integration + Windows DX (2026-07)
 
-**Goal achieved:** One-file Docker stack matching KB-IHMS pattern (`docker compose up --build`).
+**Goal achieved:** One-click checkout against real KB-IHMS + EC-OPS; Cursor/PowerShell 7 Docker workflow; expanded workflow tests and documentation hub.
 
 ---
 
@@ -24,6 +24,16 @@ Volatile phase tracking. Update when a phase gate passes — not in AGENTS.md.
 | Phase 5 | 2026-07-05 | Mock upstreams, E2E suite, CI e2e job |
 | Phase 6 | 2026-07-05 | JSON logs, saga metrics, `/metrics`, observability tests |
 | Phase 7 | 2026-07-05 | Single `docker-compose.yml`; v0.7.1 |
+| **v0.11** | 2026-07-06 | Real upstream catalog, one-click checkout, Windows/Cursor tasks, workflow tests, [docs/index.md](docs/index.md) |
+
+### v0.11 deliverables
+
+- [x] `IhmsLiveCatalog` — inventory + products auto mode for real KB-IHMS
+- [x] `POST /sessions/checkout` and `/place-order` — one-click Amazon-style flow
+- [x] `/health/upstreams` — EC-OPS auth probe
+- [x] PowerShell 7 scripts + Cursor VS Code tasks
+- [x] `tests/integration/test_full_workflow.py` + e2e workflow tests
+- [x] [docs/index.md](docs/index.md), [WORKFLOWS.md](docs/WORKFLOWS.md), [DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md)
 
 ### Phase 7 deliverables
 

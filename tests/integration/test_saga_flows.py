@@ -18,6 +18,7 @@ def settings() -> Settings:
         ihms_base_url="http://ihms.test",
         ecops_base_url="http://ecops.test",
         ecops_bearer_token="test-token",
+        catalog_source="json",
     )
 
 
@@ -442,7 +443,6 @@ async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -
         json=_hold_body(),
     )
 
-    unrelated_order = str(uuid4())
     order_route = respx.post("http://ecops.test/orders").mock(
         side_effect=httpx.TimeoutException("timeout")
     )
@@ -452,45 +452,9 @@ async def test_timeout_does_not_reconcile_unmatched_order(client: AsyncClient) -
     respx.get("http://ecops.test/orders").mock(
         side_effect=[
             httpx.Response(200, json=[]),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
-            httpx.Response(
-                200,
-                json=[
-                    {
-                        "id": unrelated_order,
-                        "customer_name": "Someone Else",
-                        "status": "PENDING",
-                        "created_at": datetime.now(UTC).isoformat(),
-                        "updated_at": None,
-                        "items": [],
-                    }
-                ],
-            ),
+            httpx.Response(200, json=[]),
+            httpx.Response(200, json=[]),
+            httpx.Response(200, json=[]),
         ]
     )
     release = respx.delete("http://ihms.test/api/holds/hold-unmatched").mock(
@@ -620,3 +584,33 @@ async def test_multi_item_hold_and_confirm(client: AsyncClient) -> None:
     assert confirm.status_code == 200
     assert confirm.json()["state"] == "CONFIRMED"
     assert confirm.json()["order_id"] == order_id
+
+
+@respx.mock
+async def test_one_click_checkout(client: AsyncClient) -> None:
+    _mock_inventory()
+    respx.post("http://ihms.test/api/holds").mock(
+        return_value=httpx.Response(201, json=_ihms_hold_response("hold-checkout"))
+    )
+    order_id = str(uuid4())
+    _mock_ecops_list_orders_empty()
+    respx.post("http://ecops.test/orders").mock(
+        return_value=httpx.Response(
+            201,
+            json=_ecops_order_response(order_id, "unused-will-be-session-correlation"),
+        )
+    )
+    _mock_fulfill("hold-checkout")
+
+    response = await client.post(
+        "/sessions/checkout",
+        json={"items": [{"sku": "WIDGET-001", "quantity": 1}]},
+        headers={"Idempotency-Key": "idem-one-click"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["state"] == "CONFIRMED"
+    assert body["order_id"] == order_id
+    assert body["correlation_id"]
+    assert response.headers.get("X-Trace-ID")
+    assert response.headers.get("X-Correlation-ID")

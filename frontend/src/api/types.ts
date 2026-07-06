@@ -16,6 +16,9 @@ export interface CatalogProduct {
   ecopsItemCode: string;
   unitPrice: number;
   availableQuantity: number | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  category?: string | null;
 }
 
 export interface SessionLineItem {

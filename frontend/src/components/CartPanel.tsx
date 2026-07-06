@@ -157,13 +157,13 @@ export function CartPanel({
         Subtotal: <strong>{formatCurrency(cartSubtotal(displayLines))}</strong>
       </p>
       <label className="field">
-        <span>Customer name</span>
+        <span>Name (optional)</span>
         <input
           type="text"
           value={customerName}
           onChange={(e) => onCustomerNameChange(e.target.value)}
           disabled={disabled}
-          placeholder="Jane Doe"
+          placeholder="Guest"
         />
       </label>
       <button
@@ -172,7 +172,6 @@ export function CartPanel({
         disabled={
           disabled ||
           checkoutPending ||
-          !customerName.trim() ||
           displayLines.length === 0 ||
           displayLines.some((line) => !line.stockUnknown && line.maxQuantity === 0)
         }
@@ -180,7 +179,7 @@ export function CartPanel({
           onCheckout(commitAllLines());
         }}
       >
-        {checkoutPending ? "Placing hold…" : "Place hold & checkout"}
+        {checkoutPending ? "Placing order…" : "Place order"}
       </button>
     </section>
   );

@@ -41,6 +41,49 @@ export async function fetchCatalog(): Promise<ApiResult<CatalogProduct[]>> {
   };
 }
 
+export async function placeCheckout(
+  payload: {
+    items: Array<{ sku: string; quantity: number }>;
+    customerName?: string;
+  },
+  idempotencyKey: string,
+): Promise<ApiResult<CheckoutSession>> {
+  const result = await requestJson<unknown>("/sessions/checkout", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({
+      items: payload.items,
+      customer_name: payload.customerName?.trim() || undefined,
+    }),
+  });
+  return {
+    observability: result.observability,
+    data: normalizeSession(result.data as never),
+  };
+}
+
+export async function placeOrder(
+  sessionId: string,
+  payload: {
+    items: Array<{ sku: string; quantity: number }>;
+    customerName?: string;
+  },
+  idempotencyKey: string,
+): Promise<ApiResult<CheckoutSession>> {
+  const result = await requestJson<unknown>(`/sessions/${sessionId}/place-order`, {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({
+      items: payload.items,
+      customer_name: payload.customerName?.trim() || undefined,
+    }),
+  });
+  return {
+    observability: result.observability,
+    data: normalizeSession(result.data as never),
+  };
+}
+
 export async function createSession(): Promise<ApiResult<CheckoutSession>> {
   const result = await requestJson<{ session_id: string; correlation_id: string; state: string }>(
     "/sessions",

@@ -40,6 +40,72 @@ async def metrics() -> PlainTextResponse:
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
+@health_router.get("/health/upstreams")
+async def upstream_health(request: Request) -> dict[str, object]:
+    """Probe configured upstream base URLs (for Docker connectivity debugging)."""
+    settings = request.app.state.settings
+    checkout: CheckoutService = request.app.state.checkout_service
+    headers = checkout.observability_from_request(
+        request.state.request_id,
+        request.state.correlation_id,
+        request.state.trace_id,
+    )
+    ihms_status: dict[str, object] = {
+        "base_url": settings.ihms_base_url,
+        "ok": False,
+    }
+    ecops_status: dict[str, object] = {
+        "base_url": settings.ecops_base_url,
+        "ok": False,
+    }
+    try:
+        products = await checkout.ihms_client.get_products(headers)
+        ihms_status["ok"] = True
+        ihms_status["product_count"] = len(products)
+    except Exception as exc:
+        ihms_status["error"] = str(exc)
+
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{settings.ecops_base_url.rstrip('/')}/health")
+        ecops_status["ok"] = response.is_success
+        if not response.is_success:
+            ecops_status["error"] = f"HTTP {response.status_code}"
+    except Exception as exc:
+        ecops_status["error"] = str(exc)
+
+    ecops_status["token_configured"] = bool(settings.ecops_bearer_token.strip())
+    if settings.ecops_bearer_token.strip():
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                auth_response = await client.get(
+                    f"{settings.ecops_base_url.rstrip('/')}/orders",
+                    headers={"Authorization": f"Bearer {settings.ecops_bearer_token}"},
+                )
+            ecops_status["auth_ok"] = auth_response.status_code != 401
+            if auth_response.status_code == 401:
+                ecops_status["auth_error"] = (
+                    "Invalid or expired credentials - re-run ecops-token and recreate orchestrator"
+                )
+        except Exception as exc:
+            ecops_status["auth_ok"] = False
+            ecops_status["auth_error"] = str(exc)
+    else:
+        ecops_status["auth_ok"] = False
+        ecops_status["auth_error"] = "ECOPS_BEARER_TOKEN not set - run scripts/ecops-token.ps1"
+
+    return {
+        "catalog_source": settings.catalog_source,
+        "catalog_fallback_to_json": settings.catalog_fallback_to_json,
+        "ihms": ihms_status,
+        "ecops": ecops_status,
+    }
+
+
 class CatalogProductOut(BaseModel):
     sku: str
     name: str
@@ -47,6 +113,9 @@ class CatalogProductOut(BaseModel):
     ecops_item_code: str
     unit_price: float
     available_quantity: int | None = None
+    description: str | None = None
+    image_url: str | None = None
+    category: str | None = None
 
     @classmethod
     def from_catalog(cls, product: CatalogProduct) -> "CatalogProductOut":
@@ -68,6 +137,9 @@ class CatalogProductOut(BaseModel):
             ecops_item_code=product.ecops_item_code,
             unit_price=product.unit_price,
             available_quantity=product.available_quantity,
+            description=product.description,
+            image_url=product.image_url,
+            category=product.category,
         )
 
 
@@ -175,6 +247,83 @@ class ConfirmBody(BaseModel):
         default=None,
         description="Optional if set during place-hold",
     )
+
+
+class PlaceOrderBody(BaseModel):
+    items: list[HoldLineItemBody] = Field(min_length=1)
+    customer_name: str | None = Field(
+        default=None,
+        description="Optional — defaults to Guest",
+    )
+
+
+class CheckoutBody(BaseModel):
+    """One-shot checkout: create session and place order atomically."""
+
+    items: list[HoldLineItemBody] = Field(min_length=1)
+    customer_name: str | None = Field(default=None)
+
+
+@sessions_router.post("/{session_id}/place-order", response_model=SessionResponse)
+async def place_order(
+    session_id: UUID,
+    body: PlaceOrderBody,
+    request: Request,
+    checkout: CheckoutDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> SessionResponse:
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    session = checkout.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    headers = checkout.observability_for_session(
+        session,
+        request.state.request_id,
+        request.state.trace_id,
+    )
+    customer = (body.customer_name or "").strip() or "Guest"
+    try:
+        result = await checkout.place_order(
+            session_id,
+            [(item.sku, item.quantity) for item in body.items],
+            customer,
+            idempotency_key,
+            headers,
+        )
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(result.session)
+
+
+@sessions_router.post("/checkout", response_model=SessionResponse, status_code=201)
+async def checkout(
+    body: CheckoutBody,
+    request: Request,
+    checkout: CheckoutDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> SessionResponse:
+    """Amazon-style one-click checkout — session + hold + EC-OPS order in one call."""
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    session = checkout.create_session(str(uuid4()))
+    headers = checkout.observability_for_session(
+        session,
+        request.state.request_id,
+        request.state.trace_id,
+    )
+    customer = (body.customer_name or "").strip() or "Guest"
+    try:
+        result = await checkout.place_order(
+            session.session_id,
+            [(item.sku, item.quantity) for item in body.items],
+            customer,
+            idempotency_key,
+            headers,
+        )
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(result.session)
 
 
 @sessions_router.post("", response_model=SessionCreateResponse, status_code=201)

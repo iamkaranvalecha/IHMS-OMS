@@ -39,4 +39,5 @@ api → checkout → saga + session + catalog → gateway
 - [ARCHITECTURE.md](ARCHITECTURE.md) — module layout and boundaries
 - [FAILURE-SCENARIOS.md](FAILURE-SCENARIOS.md) — failure matrix with sequence links
 - [docs/adr/](adr/) — architectural decision records
+- [docs/index.md](index.md) — documentation hub
 - [KB-IHMS OMS-INTEGRATION.md](https://github.com/iamkaranvalecha/KB-IHMS/blob/main/docs/OMS-INTEGRATION.md) — cross-repo links only

@@ -8,9 +8,23 @@
 | [EC-OPS](https://github.com/iamkaranvalecha/EC-OPS) | FastAPI order management system (frozen) |
 | **IHMS-OMS** (this repo) | BFF, saga, CatalogProvider, UI, ADRs, observability |
 
-## Quick start (Docker)
+## Quick start (IDE — recommended)
+
+Open this repo in **VS Code or Cursor**, then **`Ctrl+Shift+P` → Tasks: Run Task**:
+
+| Task | When to use |
+|------|-------------|
+| **Cursor: Quick start mock + open UI** | First run — full mock stack + checkout UI at http://localhost:5180 |
+| **Cursor: Real dev environment (full)** | Live KB-IHMS + EC-OPS from sibling repos + orchestrator |
+| **Cursor: Stop stack** | Tear down Docker |
+
+No terminal commands required for day-to-day use. Task list: `.vscode/tasks.json` · details: [docs/DOCKER.md](docs/DOCKER.md)
+
+## Quick start (Docker CLI)
 
 From the repository root:
+
+**Windows / Cursor:** prefer the IDE tasks above over raw CLI — `pwsh` scripts mirror every task.
 
 ```bash
 docker compose up --build
@@ -70,6 +84,8 @@ Key API routes:
 | GET | `/metrics` | Prometheus saga counters |
 | GET | `/catalog` | Product list with live IHMS stock (`available_quantity`; `null` when IHMS inventory is unavailable) |
 | POST | `/sessions` | Start checkout session |
+| POST | `/sessions/checkout` | One-click: session + hold + order (requires `Idempotency-Key`) |
+| POST | `/sessions/{id}/place-order` | Hold + order on existing session |
 | POST | `/sessions/{id}/hold` | Reserve inventory for one or more cart lines |
 | POST | `/sessions/{id}/confirm` | Place order (requires `Idempotency-Key`) |
 | DELETE | `/sessions/{id}` | Abandon / release hold |
@@ -88,22 +104,26 @@ Hold request body (multi-item cart):
 
 All lines are sent in a single atomic IHMS hold. Confirm maps every held line to EC-OPS order items.
 
-## Documentation map
+**Catalog sources:** Default `CATALOG_SOURCE=ihms` calls `GET /api/products` on KB-IHMS. For the all-mock Docker stack, mock IHMS serves the same endpoint. For **real** KB-IHMS products (Mouse, Keyboard, …), run `bash scripts/real-upstream.sh` after starting KB-IHMS (:5000) and EC-OPS (:8002). Set `CATALOG_SOURCE=json` only to force legacy `catalog/products.json`.
+
+## Documentation
+
+**Start here:** [docs/index.md](docs/index.md)
 
 | Document | Purpose |
 |----------|---------|
-| [ROADMAP.md](ROADMAP.md) | Phase gates and delivery status |
-| [AGENTS.md](AGENTS.md) | Agent/human contributor guide |
-| [CLAUDE.md](CLAUDE.md) | Slim AI entry point |
-| [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | 60-second architecture |
+| [docs/index.md](docs/index.md) | Documentation hub — diagrams, links, testing |
+| [docs/WORKFLOWS.md](docs/WORKFLOWS.md) | One-click, place-order, saga state diagrams |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module layout and boundaries |
-| [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) | Failure matrix |
-| [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) | Request / Correlation / Trace IDs |
-| [docs/DOCKER.md](docs/DOCKER.md) | Deploy stack vs mock E2E |
-| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Timeouts, retries, pooling |
+| [docs/DESIGN-DECISIONS.md](docs/DESIGN-DECISIONS.md) | ADR index + v0.11 decisions |
+| [docs/DECISION-MATRIX.md](docs/DECISION-MATRIX.md) | 60-second architecture |
+| [docs/DOCKER.md](docs/DOCKER.md) | Docker stack, Windows/Cursor tasks |
+| [docs/FAILURE-SCENARIOS.md](docs/FAILURE-SCENARIOS.md) | Failure matrix + test mapping |
+| [docs/IHMS-UPSTREAM.md](docs/IHMS-UPSTREAM.md) · [docs/EC-OPS-UPSTREAM.md](docs/EC-OPS-UPSTREAM.md) | Real upstream contracts |
 | [docs/sequences/](docs/sequences/) | Per-flow sequence diagrams |
 | [docs/adr/](docs/adr/) | Architectural decision records |
-| [AI-USAGE.md](AI-USAGE.md) | AI transparency log |
+| [ROADMAP.md](ROADMAP.md) | Phase gates and delivery status |
+| [AGENTS.md](AGENTS.md) | Agent/human contributor guide |
 
 ## Docker
 

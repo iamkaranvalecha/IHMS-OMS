@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -24,12 +26,14 @@ class OrderItemIn(BaseModel):
 
 class OrderCreateBody(BaseModel):
     customer_name: str = Field(min_length=1)
+    client_reference: str = Field(min_length=1)
     items: list[OrderItemIn] = Field(min_length=1)
 
 
 @dataclass
 class MockState:
     orders: list[dict[str, Any]] = field(default_factory=list)
+    idempotency: dict[str, str] = field(default_factory=dict)
     scenario: str | None = None
 
 
@@ -43,8 +47,10 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/orders")
-async def list_orders() -> list[dict[str, Any]]:
-    return state.orders
+async def list_orders(client_reference: str | None = None) -> list[dict[str, Any]]:
+    if client_reference is None:
+        return state.orders
+    return [order for order in state.orders if order.get("client_reference") == client_reference]
 
 
 @app.get("/orders/{order_id}")
@@ -55,30 +61,62 @@ async def get_order(order_id: str) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": "Order not found"})
 
 
-@app.post("/orders", status_code=201)
-async def create_order(body: OrderCreateBody, request: Request) -> JSONResponse:
+def _canonical_hash(body: OrderCreateBody) -> str:
+    payload = body.model_dump(mode="json")
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+@app.post("/orders")
+async def create_order(
+    body: OrderCreateBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> JSONResponse:
+    if not idempotency_key:
+        return JSONResponse(status_code=422, content={"detail": "Idempotency-Key required"})
+
+    request_hash = _canonical_hash(body)
+    existing_id = state.idempotency.get(idempotency_key)
+    if existing_id is not None:
+        for order in state.orders:
+            if order["id"] == existing_id:
+                stored_hash = order.get("_request_hash")
+                if stored_hash != request_hash:
+                    return JSONResponse(status_code=409, content={"detail": "Idempotency conflict"})
+                return JSONResponse(status_code=200, content=order)
+
     correlation_id = request.headers.get("X-Correlation-ID")
     scenario = request.headers.get("X-Test-Scenario") or state.scenario
 
     if scenario == "order-error":
         return JSONResponse(status_code=500, content={"detail": "Order failed"})
 
-    order = _build_order(body, correlation_id)
+    client_reference = body.client_reference
+    if any(order.get("client_reference") == client_reference for order in state.orders):
+        return JSONResponse(
+            status_code=409,
+            content={"detail": f"client_reference '{client_reference}' is already in use"},
+        )
+
+    order = _build_order(body, client_reference)
+    order["_request_hash"] = request_hash
 
     if scenario == "order-timeout":
         state.orders.append(order)
-        # Persist order immediately; hang response so orchestrator read-timeout fires.
-        # asyncio.sleep yields — other requests (GET /orders reconcile) stay served.
+        state.idempotency[idempotency_key] = order["id"]
         await asyncio.sleep(ORDER_TIMEOUT_HANG_SECONDS)
         return JSONResponse(status_code=201, content=order)
 
     state.orders.append(order)
+    state.idempotency[idempotency_key] = order["id"]
     return JSONResponse(status_code=201, content=order)
 
 
 @app.post("/_test/reset")
 async def reset_state() -> dict[str, str]:
     state.orders.clear()
+    state.idempotency.clear()
     state.scenario = None
     return {"status": "reset"}
 

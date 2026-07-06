@@ -1,6 +1,7 @@
 """Application settings from environment."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,7 +15,12 @@ class Settings(BaseSettings):
     ecops_base_url: str = "http://localhost:8002"
     ecops_bearer_token: str = ""
 
+    catalog_source: Literal["json", "ihms"] = "ihms"
     catalog_path: Path = Path("catalog/products.json")
+    ihms_products_metadata_path: Path = Path("catalog/ihms-products.json")
+    ecops_mapping_path: Path = Path("catalog/ecops-mapping.json")
+    catalog_fallback_to_json: bool = False
+    ihms_catalog_mode: Literal["auto", "inventory", "products"] = "auto"
 
     cors_origins: list[str] = [
         "http://localhost:5173",

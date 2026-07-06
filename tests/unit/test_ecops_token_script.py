@@ -73,6 +73,7 @@ def test_env_example_configures_real_upstream_compose_path() -> None:
 
     assert "IHMS_BASE_URL=http://host.docker.internal:5000" in lines
     assert "ECOPS_BASE_URL=http://host.docker.internal:8002" in lines
+    assert "CATALOG_SOURCE=ihms" in lines
     assert "ECOPS_BEARER_TOKEN=" in lines
     assert "UI_PORT=5180" in lines
 

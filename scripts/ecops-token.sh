@@ -83,4 +83,23 @@ else
   printf '\nECOPS_BEARER_TOKEN=%s\n' "$token" >> .env
 fi
 
-echo "==> ECOPS_BEARER_TOKEN written to .env"
+_ensure_env_var() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" .env 2>/dev/null; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+      sed -i '' "s|^${key}=.*|${key}=${value}|" .env
+    else
+      sed -i "s|^${key}=.*|${key}=${value}|" .env
+    fi
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
+}
+
+_ensure_env_var CATALOG_SOURCE ihms
+_ensure_env_var CATALOG_FALLBACK_TO_JSON false
+_ensure_env_var IHMS_BASE_URL "${IHMS_BASE_URL:-http://host.docker.internal:5000}"
+_ensure_env_var ECOPS_BASE_URL "${ECOPS_BASE_URL:-http://host.docker.internal:8002}"
+
+echo "==> ECOPS_BEARER_TOKEN written to .env (CATALOG_SOURCE=ihms)"

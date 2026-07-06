@@ -24,6 +24,9 @@ class CatalogProductWithAvailability(BaseModel):
         default=None,
         description="Units available to hold (from KB-IHMS); null when stock unknown",
     )
+    description: str | None = None
+    image_url: str | None = None
+    category: str | None = None
 
 
 def _catalog_without_inventory(catalog: CatalogProvider) -> list[CatalogProductWithAvailability]:

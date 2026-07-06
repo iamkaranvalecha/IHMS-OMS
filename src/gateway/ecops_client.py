@@ -5,6 +5,7 @@ import httpx
 from src.gateway.ecops_models import OrderCreate, OrderResponse, OrderStatus
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.http_utils import map_transport_error, raise_for_ecops_response
+from src.gateway.observability import log_gateway_call
 
 
 class EcOpsClient:
@@ -36,6 +37,13 @@ class EcOpsClient:
         extra: dict[str, str] = {}
         if idempotency_key:
             extra["Idempotency-Key"] = idempotency_key
+        log_gateway_call(
+            system="ecops",
+            operation="POST /orders",
+            headers=headers,
+            idempotency_key=idempotency_key,
+            client_reference=payload.client_reference,
+        )
         try:
             response = await self._client.post(
                 f"{self._base_url}/orders",
@@ -63,10 +71,19 @@ class EcOpsClient:
         headers: ObservabilityHeaders,
         *,
         status: OrderStatus | None = None,
+        client_reference: str | None = None,
     ) -> list[OrderResponse]:
         params: dict[str, str] = {}
         if status is not None:
             params["status"] = status.value
+        if client_reference is not None:
+            params["client_reference"] = client_reference
+        log_gateway_call(
+            system="ecops",
+            operation="GET /orders",
+            headers=headers,
+            client_reference=client_reference,
+        )
         try:
             response = await self._client.get(
                 f"{self._base_url}/orders",
@@ -83,5 +100,5 @@ class EcOpsClient:
         client_reference: str,
         headers: ObservabilityHeaders,
     ) -> OrderResponse | None:
-        orders = await self.list_orders(headers)
-        return next((order for order in orders if order.client_reference == client_reference), None)
+        orders = await self.list_orders(headers, client_reference=client_reference)
+        return orders[0] if orders else None
