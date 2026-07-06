@@ -209,3 +209,97 @@ async def test_abandon_releases_hold(api: httpx.AsyncClient) -> None:
     abandon = await api.delete(f"/sessions/{session_id}")
     assert abandon.status_code == 200
     assert abandon.json()["state"] == "ABANDONED"
+
+
+def _checkout_body(
+    customer_name: str = "E2E Customer",
+    *,
+    items: list[dict[str, object]] | None = None,
+) -> dict:
+    if items is None:
+        items = [{"sku": "WIDGET-001", "quantity": 1}]
+    return {"items": items, "customer_name": customer_name}
+
+
+@pytest.mark.e2e
+async def test_one_click_checkout(api: httpx.AsyncClient) -> None:
+    response = await api.post(
+        "/sessions/checkout",
+        json=_checkout_body("Karan"),
+        headers={"Idempotency-Key": "e2e-one-click"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["state"] == "CONFIRMED"
+    assert body["order_id"]
+    assert body["hold_id"]
+    assert body["customer_name"] == "Karan"
+    assert response.headers.get("X-Trace-ID")
+
+
+@pytest.mark.e2e
+async def test_place_order_on_existing_session(api: httpx.AsyncClient) -> None:
+    create = await api.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+
+    response = await api.post(
+        f"/sessions/{session_id}/place-order",
+        json=_checkout_body("Place Order E2E"),
+        headers={"Idempotency-Key": "e2e-place-order"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["state"] == "CONFIRMED"
+    assert body["order_id"]
+
+
+@pytest.mark.e2e
+async def test_multi_item_one_click_checkout(api: httpx.AsyncClient) -> None:
+    response = await api.post(
+        "/sessions/checkout",
+        json=_checkout_body(
+            items=[
+                {"sku": "WIDGET-001", "quantity": 1},
+                {"sku": "GADGET-002", "quantity": 1},
+            ],
+        ),
+        headers={"Idempotency-Key": "e2e-multi-checkout"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["state"] == "CONFIRMED"
+    assert len(body["line_items"]) == 2
+
+
+@pytest.mark.e2e
+async def test_health_upstreams(api: httpx.AsyncClient) -> None:
+    response = await api.get("/health/upstreams")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ihms"]["ok"] is True
+    assert body["ecops"]["ok"] is True
+    assert "token_configured" in body["ecops"]
+
+
+@pytest.mark.e2e
+async def test_place_order_idempotency_replay(api: httpx.AsyncClient) -> None:
+    create = await api.post("/sessions", json={})
+    session_id = create.json()["session_id"]
+    headers = {"Idempotency-Key": "e2e-place-order-idem"}
+
+    first = await api.post(
+        f"/sessions/{session_id}/place-order",
+        json=_checkout_body(),
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+    order_id = first.json()["order_id"]
+
+    second = await api.post(
+        f"/sessions/{session_id}/place-order",
+        json=_checkout_body(),
+        headers=headers,
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["order_id"] == order_id
+    assert second.json()["state"] == "CONFIRMED"

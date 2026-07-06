@@ -27,3 +27,16 @@ Detail: [sequences/reconciliation.md](sequences/reconciliation.md).
 ## Test coverage expectation
 
 Each row must have corresponding tests by Phase 3 (integration) and Phase 5 (e2e where applicable).
+
+| Scenario | Integration | E2E |
+|----------|-------------|-----|
+| Hold fails 409 | `test_hold_fails_with_409` | `test_hold_fails_with_409` |
+| Order fails → compensate | `test_confirm_compensates_*`, `test_one_click_checkout_compensates_*` | `test_confirm_compensates_when_order_fails` |
+| Hold expires | unit `test_confirm_rejects_expired_hold` | — |
+| Duplicate confirm / place-order | `test_duplicate_confirm_*`, `test_place_order_idempotency_replay` | `test_place_order_idempotency_replay` |
+| FULFILL_PENDING | `test_confirm_fulfill_pending_then_retry` | — |
+| Insufficient stock | `test_hold_rejected_when_inventory_insufficient` | — |
+| Reconciliation timeout | `test_reconcile_after_order_timeout` | `test_reconcile_after_order_timeout` |
+| EC-OPS auth failure | `test_health_upstreams_auth_failure_*` | `test_health_upstreams` |
+
+Full workflow suite: `tests/integration/test_full_workflow.py`

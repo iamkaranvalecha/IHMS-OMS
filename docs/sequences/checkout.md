@@ -12,7 +12,33 @@
 - KB-IHMS
 - EC-OPS
 
-## Flow
+## One-click flow (v0.11 UI default)
+
+The shop UI calls a single endpoint instead of session → hold → confirm:
+
+```mermaid
+sequenceDiagram
+  participant UI
+  participant API as Orchestrator
+  participant IHMS as KB-IHMS
+  participant OPS as EC-OPS
+
+  UI->>API: GET /catalog
+  API->>IHMS: GET /api/inventory
+  IHMS-->>API: stock
+  API-->>UI: products
+
+  UI->>API: POST /sessions/checkout + Idempotency-Key, items[]
+  API->>IHMS: POST /api/holds
+  IHMS-->>API: hold_id
+  API->>OPS: POST /orders
+  OPS-->>API: order_id
+  API-->>UI: CONFIRMED
+```
+
+API: `POST /sessions/{id}/place-order` — same saga when a session already exists.
+
+See [WORKFLOWS.md](../WORKFLOWS.md) for full diagrams.
 
 ```mermaid
 sequenceDiagram
@@ -63,3 +89,5 @@ See [FAILURE-SCENARIOS.md](../FAILURE-SCENARIOS.md) — hold fail, duplicate con
 - [x] Idempotency key cached on duplicate confirm
 - [x] Multi-item hold + confirm integration test
 - [x] Fulfill pending retry integration test
+- [x] One-click checkout (`POST /sessions/checkout`) integration + e2e
+- [x] Place order on session (`POST /sessions/{id}/place-order`) integration + e2e
