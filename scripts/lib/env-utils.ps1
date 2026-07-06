@@ -1,9 +1,8 @@
-# Shared helpers for IHMS-OMS PowerShell scripts (Windows PowerShell 5.1+ / PowerShell 7+).
+# Shared helpers for IHMS-OMS PowerShell scripts (PowerShell 7+ / pwsh).
+#Requires -Version 7.0
 
 function Get-RepoRoot {
-    # Join-Path only accepts two segments on Windows PowerShell 5.1.
-    $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    return (Resolve-Path $repoRoot).Path
+    (Resolve-Path (Join-Path $PSScriptRoot ".." "..")).Path
 }
 
 function Set-EnvVar {
@@ -86,16 +85,7 @@ function Test-UrlReachable {
     )
 
     try {
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $null = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec
-        }
-        else {
-            $request = [System.Net.WebRequest]::Create($Url)
-            $request.Method = "GET"
-            $request.Timeout = $TimeoutSec * 1000
-            $response = $request.GetResponse()
-            $response.Close()
-        }
+        $null = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec $TimeoutSec
         return $true
     }
     catch {
@@ -124,8 +114,8 @@ function Invoke-DockerCompose {
     )
 
     & docker compose @Args
-    if (-not $?) {
-        throw "docker compose failed: docker compose $($Args -join ' ')"
+    if ($LASTEXITCODE -ne 0) {
+        throw "docker compose failed (exit $LASTEXITCODE): docker compose $($Args -join ' ')"
     }
 }
 

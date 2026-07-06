@@ -33,7 +33,7 @@
       "type": "shell",
       "command": "bash scripts/dev-up.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -93,7 +93,7 @@
       "type": "shell",
       "command": "bash scripts/full-stack.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -117,7 +117,7 @@
       "type": "shell",
       "command": "bash scripts/mock-stack.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -137,7 +137,7 @@
       "type": "shell",
       "command": "bash scripts/e2e-stack.sh down",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -157,7 +157,7 @@
       "type": "shell",
       "command": "docker compose down -v --remove-orphans",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -190,7 +190,7 @@
       "type": "shell",
       "command": "KB_IHMS_PATH='${input:kbIhmsPath}' EC_OPS_PATH='${input:ecOpsPath}' bash scripts/start-upstreams.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -214,7 +214,7 @@
       "type": "shell",
       "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/ecops-token.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -238,7 +238,7 @@
       "type": "shell",
       "command": "bash scripts/real-upstream.sh --check",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -259,7 +259,7 @@
       "type": "shell",
       "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/real-upstream.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -288,7 +288,7 @@
       "type": "shell",
       "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/real-upstream.sh --detached",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -317,7 +317,7 @@
       "type": "shell",
       "command": "bash scripts/health-check.sh",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",
@@ -337,7 +337,7 @@
       "type": "shell",
       "command": "curl -fsS http://localhost:8000/health/upstreams | python3 -m json.tool",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-Command",
@@ -355,7 +355,7 @@
       "type": "shell",
       "command": "curl -fsS http://localhost:8000/catalog | python3 -m json.tool",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-Command",
@@ -373,7 +373,7 @@
       "type": "shell",
       "command": "xdg-open http://localhost:5180 || open http://localhost:5180",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-Command",
@@ -391,7 +391,7 @@
       "type": "shell",
       "command": "xdg-open http://localhost:8000/docs || open http://localhost:8000/docs",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-Command",
@@ -409,7 +409,7 @@
       "type": "shell",
       "command": "bash scripts/mock-stack.sh --check && docker compose --profile obs up --build --wait",
       "windows": {
-        "command": "powershell",
+        "command": "pwsh",
         "args": [
           "-NoProfile",
           "-ExecutionPolicy",

@@ -1,0 +1,26 @@
+{
+  "terminal.integrated.defaultProfile.windows": "PowerShell 7",
+  "terminal.integrated.profiles.windows": {
+    "PowerShell 7": {
+      "path": "pwsh.exe",
+      "icon": "terminal-powershell"
+    },
+    "Windows PowerShell": {
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "icon": "terminal-powershell"
+    },
+    "Command Prompt": {
+      "path": "C:\\Windows\\System32\\cmd.exe"
+    }
+  },
+  "terminal.integrated.automationProfile.windows": {
+    "path": "pwsh.exe"
+  },
+  "powershell.powerShellDefaultVersion": "PowerShell (x64)",
+  "powershell.powerShellAdditionalVersions": [
+    {
+      "versionName": "PowerShell 7",
+      "exePath": "pwsh.exe"
+    }
+  ]
+}

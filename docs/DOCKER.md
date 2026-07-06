@@ -21,7 +21,24 @@ E2E tests: `STACK=1 bash scripts/verify.sh` (uses `scripts/e2e-stack.sh` interna
 
 ## Windows / Cursor dev environment
 
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) on Windows.
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) and **PowerShell 7** (`pwsh`) on Windows.
+
+### PowerShell 7 setup (one-time)
+
+Verify installed:
+
+```powershell
+pwsh -Version
+```
+
+This repo ships `.vscode/settings.json` so **Cursor and VS Code** default to PowerShell 7 for:
+
+- Integrated terminal (`terminal.integrated.defaultProfile.windows`)
+- Tasks (`terminal.integrated.automationProfile.windows` + all tasks use `pwsh`)
+
+After `git pull`, reload the window: **`Ctrl+Shift+P` → Developer: Reload Window**.
+
+If tasks still use Windows PowerShell 5.1, ensure `pwsh.exe` is on your PATH (default install: `C:\Program Files\PowerShell\7\`).
 
 ### Cursor / VS Code tasks (recommended)
 

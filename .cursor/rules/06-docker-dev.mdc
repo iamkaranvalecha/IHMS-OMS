@@ -8,6 +8,8 @@ alwaysApply: false
 
 Use this when starting stacks, debugging `/catalog` 502s, or onboarding on **Windows + Docker Desktop**.
 
+**Requires PowerShell 7 (`pwsh`)** — not Windows PowerShell 5.1. Repo `.vscode/settings.json` configures Cursor/VS Code to use `pwsh` for terminal and tasks.
+
 ## First run (mock — no sibling repos)
 
 In Cursor: **`Ctrl+Shift+P` → Tasks: Run Task → `Cursor: Quick start mock + open UI`**
