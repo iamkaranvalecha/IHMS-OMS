@@ -1,0 +1,46 @@
+{
+  "products": {
+    "prod-001": {
+      "sku": "MOUSE-001",
+      "unit_price": 29.99,
+      "description": "Wireless Mouse",
+      "category": "Peripherals"
+    },
+    "prod-002": {
+      "sku": "KEYBOARD-002",
+      "unit_price": 89.99,
+      "description": "Mechanical Keyboard",
+      "category": "Peripherals"
+    },
+    "prod-003": {
+      "sku": "HUB-003",
+      "unit_price": 49.99,
+      "description": "USB-C Hub",
+      "category": "Accessories"
+    },
+    "prod-004": {
+      "sku": "MONITOR-004",
+      "unit_price": 349.99,
+      "description": "27-inch Monitor",
+      "category": "Displays"
+    },
+    "prod-005": {
+      "sku": "HEADSET-005",
+      "unit_price": 199.99,
+      "description": "Noise-Cancelling Headset",
+      "category": "Audio"
+    },
+    "prod-widget-001": {
+      "sku": "WIDGET-001",
+      "unit_price": 19.99,
+      "description": "Standard Widget",
+      "category": "Widgets"
+    },
+    "prod-gadget-002": {
+      "sku": "GADGET-002",
+      "unit_price": 49.99,
+      "description": "Premium Gadget",
+      "category": "Gadgets"
+    }
+  }
+}

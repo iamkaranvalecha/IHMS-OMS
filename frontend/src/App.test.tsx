@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ChangeEvent } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCatalog, useCheckoutMutations, useSession } from "@/api/hooks";
@@ -35,34 +34,13 @@ vi.mock("@/components/CatalogGrid", () => ({
 vi.mock("@/components/CartPanel", () => ({
   CartPanel: ({
     cart,
-    customerName,
     onCheckout,
-    onCustomerNameChange,
   }: {
     cart: CartItem[];
-    customerName: string;
     onCheckout: (items: CartItem[]) => void;
-    onCustomerNameChange: (value: string) => void;
   }) => (
-    <div>
-      <input
-        aria-label="Customer name"
-        value={customerName}
-        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-          onCustomerNameChange(event.target.value)
-        }
-      />
-      <button type="button" disabled={cart.length === 0} onClick={() => onCheckout(cart)}>
-        Place hold
-      </button>
-    </div>
-  ),
-}));
-
-vi.mock("@/components/CheckoutPanel", () => ({
-  CheckoutPanel: ({ onConfirm }: { onConfirm: () => void }) => (
-    <button type="button" onClick={onConfirm}>
-      Confirm order
+    <button type="button" disabled={cart.length === 0} onClick={() => onCheckout(cart)}>
+      Place order
     </button>
   ),
 }));
@@ -77,14 +55,14 @@ const observability: ObservabilityIds = {
   traceId: "trace-1",
 };
 
-const heldSession: CheckoutSession = {
+const confirmedSession: CheckoutSession = {
   sessionId: "session-1",
   correlationId: "corr-1",
-  state: "HELD",
+  state: "CONFIRMED",
   holdId: "hold-1",
-  orderId: null,
-  expiresAt: "2026-07-04T16:00:00Z",
-  customerName: "Jane Doe",
+  orderId: "order-1",
+  expiresAt: null,
+  customerName: "Guest",
   lineItems: [{ sku: "WIDGET-001", name: "Widget", quantity: 1, unitPrice: 19.99 }],
 };
 
@@ -98,18 +76,8 @@ const catalogProduct: CatalogProduct = {
 };
 
 function setupHooks() {
-  const startCheckout = {
-    mutateAsync: vi.fn(async () => ({ data: heldSession, observability })),
-    isPending: false,
-  };
-  const confirmCheckout = {
-    mutateAsync: vi.fn(async () => {
-      throw new Error("network lost after confirm");
-    }),
-    isPending: false,
-  };
-  const abandonCheckout = {
-    mutateAsync: vi.fn(async () => ({ data: heldSession, observability })),
+  const placeOrder = {
+    mutateAsync: vi.fn(async () => ({ data: confirmedSession, observability })),
     isPending: false,
   };
 
@@ -120,19 +88,17 @@ function setupHooks() {
   } as unknown as ReturnType<typeof useCatalog>);
   vi.mocked(useSession).mockImplementation((sessionId) =>
     ({
-      data: sessionId ? { data: heldSession, observability } : undefined,
+      data: sessionId ? { data: confirmedSession, observability } : undefined,
     }) as unknown as ReturnType<typeof useSession>,
   );
   vi.mocked(useCheckoutMutations).mockReturnValue({
-    startCheckout,
-    confirmCheckout,
-    abandonCheckout,
+    placeOrder,
   } as unknown as ReturnType<typeof useCheckoutMutations>);
 
-  return { startCheckout, confirmCheckout };
+  return { placeOrder };
 }
 
-describe("App confirm idempotency", () => {
+describe("App one-click checkout", () => {
   afterEach(() => {
     cleanup();
   });
@@ -140,59 +106,35 @@ describe("App confirm idempotency", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
     vi.clearAllMocks();
-    const randomUUID = vi.fn<() => ReturnType<Crypto["randomUUID"]>>();
-    randomUUID.mockReturnValue("00000000-0000-4000-8000-000000000001");
-    vi.stubGlobal("crypto", { randomUUID });
+    vi.stubGlobal("crypto", {
+      randomUUID: vi.fn(() => "00000000-0000-4000-8000-000000000001"),
+    });
   });
 
-  it("reuses the checkout idempotency key across failed confirm retries", async () => {
-    const { startCheckout, confirmCheckout } = setupHooks();
+  it("places order with a stable idempotency key on retry", async () => {
+    const { placeOrder } = setupHooks();
+    placeOrder.mutateAsync
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({ data: confirmedSession, observability });
 
     render(<App />);
-
     fireEvent.click(screen.getByText("Add Widget"));
-    fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Jane Doe" } });
-    fireEvent.click(screen.getByText("Place hold"));
+    fireEvent.click(screen.getByText("Place order"));
+    await waitFor(() => expect(placeOrder.mutateAsync).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByText("Place order"));
+    await waitFor(() => expect(placeOrder.mutateAsync).toHaveBeenCalledTimes(2));
 
-    await waitFor(() => expect(startCheckout.mutateAsync).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByText("Confirm order")).not.toBeNull());
-
-    fireEvent.click(screen.getByText("Confirm order"));
-    await waitFor(() => expect(confirmCheckout.mutateAsync).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByText("Confirm order"));
-    await waitFor(() => expect(confirmCheckout.mutateAsync).toHaveBeenCalledTimes(2));
-
-    expect(confirmCheckout.mutateAsync).toHaveBeenNthCalledWith(1, {
-      sessionId: "session-1",
+    expect(placeOrder.mutateAsync).toHaveBeenNthCalledWith(1, {
+      cart: expect.any(Array),
+      customerName: undefined,
       idempotencyKey: "00000000-0000-4000-8000-000000000001",
+      sessionId: undefined,
     });
-    expect(confirmCheckout.mutateAsync).toHaveBeenNthCalledWith(2, {
-      sessionId: "session-1",
+    expect(placeOrder.mutateAsync).toHaveBeenNthCalledWith(2, {
+      cart: expect.any(Array),
+      customerName: undefined,
       idempotencyKey: "00000000-0000-4000-8000-000000000001",
+      sessionId: undefined,
     });
-    expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
-  });
-
-  it("resumes a stored active checkout with the original idempotency key", async () => {
-    const { confirmCheckout } = setupHooks();
-    window.sessionStorage.setItem(
-      "checkout-orchestrator.active-checkout",
-      JSON.stringify({
-        sessionId: "session-1",
-        confirmIdempotencyKey: "stored-idem-key",
-      }),
-    );
-
-    render(<App />);
-
-    await waitFor(() => expect(screen.queryByText("Confirm order")).not.toBeNull());
-    fireEvent.click(screen.getByText("Confirm order"));
-
-    await waitFor(() => expect(confirmCheckout.mutateAsync).toHaveBeenCalledTimes(1));
-    expect(confirmCheckout.mutateAsync).toHaveBeenCalledWith({
-      sessionId: "session-1",
-      idempotencyKey: "stored-idem-key",
-    });
-    expect(crypto.randomUUID).not.toHaveBeenCalled();
   });
 });

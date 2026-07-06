@@ -1,13 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  abandonSession,
-  confirmSession,
-  createSession,
-  fetchCatalog,
-  fetchSession,
-  placeHold,
-} from "./client";
+import { fetchCatalog, fetchSession, placeCheckout, placeOrder } from "./client";
 import type { CartItem, ObservabilityIds } from "./types";
 
 export const queryKeys = {
@@ -18,10 +11,7 @@ export const queryKeys = {
 export function useCatalog(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: queryKeys.catalog,
-    queryFn: async () => {
-      const result = await fetchCatalog();
-      return result;
-    },
+    queryFn: async () => fetchCatalog(),
     refetchInterval: options?.refetchInterval ?? false,
   });
 }
@@ -38,7 +28,7 @@ export function useSession(sessionId: string | null, enabled = true) {
     enabled: Boolean(sessionId) && enabled,
     refetchInterval: (query) => {
       const state = query.state.data?.data.state;
-      return state === "HELD" || state === "FULFILL_PENDING" ? 2000 : false;
+      return state === "FULFILL_PENDING" ? 2000 : false;
     },
   });
 }
@@ -50,26 +40,27 @@ export function useCheckoutMutations(onObservability?: (ids: ObservabilityIds) =
     onObservability?.(observability);
   };
 
-  const startCheckout = useMutation({
-    mutationFn: async (payload: { cart: CartItem[]; customerName: string }) => {
-      const created = await createSession();
-      track(created.observability);
-      const held = await placeHold(created.data.sessionId, {
-        items: payload.cart.map((line) => ({ sku: line.sku, quantity: line.quantity })),
-        customerName: payload.customerName,
-      });
-      track(held.observability);
-      return held;
-    },
-    onSuccess: (result) => {
-      queryClient.setQueryData(queryKeys.session(result.data.sessionId), result);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.catalog });
-    },
-  });
-
-  const confirmCheckout = useMutation({
-    mutationFn: async (payload: { sessionId: string; idempotencyKey: string }) => {
-      const result = await confirmSession(payload.sessionId, payload.idempotencyKey);
+  const placeOrderMutation = useMutation({
+    mutationFn: async (payload: {
+      cart: CartItem[];
+      customerName?: string;
+      idempotencyKey: string;
+      sessionId?: string;
+    }) => {
+      const items = payload.cart.map((line) => ({ sku: line.sku, quantity: line.quantity }));
+      if (payload.sessionId) {
+        const result = await placeOrder(
+          payload.sessionId,
+          { items, customerName: payload.customerName },
+          payload.idempotencyKey,
+        );
+        track(result.observability);
+        return result;
+      }
+      const result = await placeCheckout(
+        { items, customerName: payload.customerName },
+        payload.idempotencyKey,
+      );
       track(result.observability);
       return result;
     },
@@ -79,17 +70,5 @@ export function useCheckoutMutations(onObservability?: (ids: ObservabilityIds) =
     },
   });
 
-  const abandonCheckout = useMutation({
-    mutationFn: async (sessionId: string) => {
-      const result = await abandonSession(sessionId);
-      track(result.observability);
-      return result;
-    },
-    onSuccess: (result) => {
-      queryClient.setQueryData(queryKeys.session(result.data.sessionId), result);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.catalog });
-    },
-  });
-
-  return { startCheckout, confirmCheckout, abandonCheckout };
+  return { placeOrder: placeOrderMutation };
 }

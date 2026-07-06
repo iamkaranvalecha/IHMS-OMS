@@ -1,3 +1,9 @@
 {
-  "overrides": {}
+  "overrides": {
+    "MOUSE-001": "MOUSE-001",
+    "KEYBOARD-002": "KEYBOARD-002",
+    "HUB-003": "HUB-003",
+    "WIDGET-001": "WIDGET-001",
+    "GADGET-002": "GADGET-002"
+  }
 }

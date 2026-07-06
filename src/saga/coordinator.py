@@ -53,6 +53,14 @@ class ConfirmResult:
     from_cache: bool = False
 
 
+@dataclass(frozen=True)
+class PlaceOrderResult:
+    """Outcome of atomic place-order (hold + EC-OPS order + finalize)."""
+
+    session: CheckoutSession
+    from_cache: bool = False
+
+
 @dataclass
 class SagaCoordinator:
     """Orchestrates distributed checkout steps across IHMS and EC-OPS."""
@@ -317,6 +325,92 @@ class SagaCoordinator:
                 outcome="abandoned",
             )
             return saved
+
+    async def place_order(
+        self,
+        session_id: UUID,
+        items: list[tuple[str, int]],
+        customer_name: str,
+        idempotency_key: str,
+        headers: ObservabilityHeaders,
+    ) -> PlaceOrderResult:
+        """Idempotent atomic checkout — hold once, then EC-OPS order + finalize."""
+        cached = self.idempotency.get(session_id, idempotency_key)
+        if cached is not None:
+            session = self.sessions.get(session_id)
+            if session is None:
+                raise SessionNotFoundError("Session not found")
+            cached_state = cached.body.get("state")
+            updates: dict[str, object] = {}
+            if cached.order_id:
+                updates["order_id"] = cached.order_id
+            if cached_state and session.state in (
+                SessionState.CREATED,
+                SessionState.HELD,
+                SessionState.FULFILL_PENDING,
+            ):
+                updates["state"] = SessionState(str(cached_state))
+            if updates:
+                session = self.sessions.save(session.model_copy(update=updates))
+            log_saga_step(
+                "place_order",
+                "place-order served from idempotency cache",
+                session_id=session_id,
+                order_id=session.order_id,
+                outcome="cached",
+            )
+            return PlaceOrderResult(session=session, from_cache=True)
+
+        session = self.sessions.get(session_id)
+        if session is None:
+            raise SessionNotFoundError("Session not found")
+        if session.is_terminal():
+            raise InvalidStateTransitionError(
+                f"Cannot place order from terminal state {session.state.value}",
+            )
+
+        resolved_customer = customer_name.strip() or session.customer_name or "Guest"
+
+        if session.state == SessionState.CREATED:
+            log_saga_step(
+                "place_order",
+                "placing IHMS hold",
+                session_id=session_id,
+                correlation_id=session.correlation_id,
+                trace_id=headers.trace_id,
+                outcome="hold_start",
+            )
+            session = await self.place_hold(
+                session_id,
+                items,
+                resolved_customer,
+                headers,
+            )
+
+        session = self.sessions.get(session_id)
+        if session is None:
+            raise SessionNotFoundError("Session not found")
+
+        if session.state == SessionState.FULFILL_PENDING:
+            confirm = await self.confirm(session_id, resolved_customer, idempotency_key, headers)
+            return PlaceOrderResult(session=confirm.session, from_cache=confirm.from_cache)
+
+        if session.state != SessionState.HELD:
+            raise InvalidStateTransitionError(
+                f"Cannot place order from state {session.state.value}",
+            )
+
+        log_saga_step(
+            "place_order",
+            "creating EC-OPS order",
+            session_id=session_id,
+            correlation_id=session.correlation_id,
+            trace_id=headers.trace_id,
+            hold_id=session.hold_id,
+            outcome="order_start",
+        )
+        confirm = await self.confirm(session_id, resolved_customer, idempotency_key, headers)
+        return PlaceOrderResult(session=confirm.session, from_cache=confirm.from_cache)
 
     async def _create_order_with_retry(
         self,

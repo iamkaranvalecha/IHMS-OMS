@@ -1,4 +1,4 @@
-"""Wire-compatible KB-IHMS mock for full-stack E2E."""
+"""Wire-compatible KB-IHMS mock — mirrors real main API (/api/inventory, /api/holds)."""
 
 from __future__ import annotations
 
@@ -11,42 +11,68 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
-PRODUCT_NAMES = {
-    "prod-widget-001": "Standard Widget",
-    "prod-gadget-002": "Premium Gadget",
-}
-
 PRODUCT_CATALOG = [
+    {
+        "productId": "prod-001",
+        "sku": "MOUSE-001",
+        "name": "Wireless Mouse",
+        "description": "Wireless Mouse",
+        "category": "Peripherals",
+        "unitPrice": 29.99,
+        "currency": "USD",
+        "sellable": True,
+    },
+    {
+        "productId": "prod-002",
+        "sku": "KEYBOARD-002",
+        "name": "Mechanical Keyboard",
+        "description": "Mechanical Keyboard",
+        "category": "Peripherals",
+        "unitPrice": 89.99,
+        "currency": "USD",
+        "sellable": True,
+    },
+    {
+        "productId": "prod-003",
+        "sku": "HUB-003",
+        "name": "USB-C Hub",
+        "description": "USB-C Hub",
+        "category": "Accessories",
+        "unitPrice": 49.99,
+        "currency": "USD",
+        "sellable": True,
+    },
     {
         "productId": "prod-widget-001",
         "sku": "WIDGET-001",
         "name": "Standard Widget",
-        "description": "Reliable everyday widget",
+        "description": "Standard Widget",
         "category": "Widgets",
         "unitPrice": 19.99,
         "currency": "USD",
-        "availableQuantity": 100,
-        "imageUrl": "",
         "sellable": True,
     },
     {
         "productId": "prod-gadget-002",
         "sku": "GADGET-002",
         "name": "Premium Gadget",
-        "description": "Feature-rich premium gadget",
+        "description": "Premium Gadget",
         "category": "Gadgets",
         "unitPrice": 49.99,
         "currency": "USD",
-        "availableQuantity": 50,
-        "imageUrl": "",
         "sellable": True,
     },
 ]
 
 DEFAULT_INVENTORY = {
+    "prod-001": 120,
+    "prod-002": 80,
+    "prod-003": 65,
     "prod-widget-001": 100,
     "prod-gadget-002": 50,
 }
+
+PRODUCT_NAMES = {p["productId"]: p["name"] for p in PRODUCT_CATALOG}
 
 
 class HoldItemIn(BaseModel):
@@ -78,7 +104,7 @@ class MockState:
 
 
 state = MockState()
-app = FastAPI(title="mock-ihms", version="0.1.0")
+app = FastAPI(title="mock-ihms", version="0.2.0")
 
 
 @app.get("/health")
@@ -86,8 +112,22 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/inventory")
+async def list_inventory() -> list[dict[str, Any]]:
+    """Real KB-IHMS main shape: productId, name, availableQuantity."""
+    return [
+        {
+            "productId": product_id,
+            "name": PRODUCT_NAMES.get(product_id, product_id),
+            "availableQuantity": qty,
+        }
+        for product_id, qty in state.inventory.items()
+    ]
+
+
 @app.get("/api/products")
 async def list_products() -> list[dict[str, Any]]:
+    """Optional Plan-A endpoint for mock compatibility."""
     return [
         {
             **product,
@@ -95,14 +135,6 @@ async def list_products() -> list[dict[str, Any]]:
         }
         for product in PRODUCT_CATALOG
         if product.get("sellable", True)
-    ]
-
-
-@app.get("/api/inventory")
-async def list_inventory() -> list[dict[str, Any]]:
-    return [
-        {"productId": product_id, "availableQuantity": qty}
-        for product_id, qty in state.inventory.items()
     ]
 
 

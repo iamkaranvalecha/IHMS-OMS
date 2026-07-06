@@ -11,6 +11,7 @@ from src.gateway.ihms_models import (
     InventoryItemResponse,
     ProductCatalogItemResponse,
 )
+from src.gateway.observability import log_gateway_call
 
 
 class IhmsClient:
@@ -32,6 +33,7 @@ class IhmsClient:
         items: list[CreateHoldItemRequest],
         headers: ObservabilityHeaders,
     ) -> HoldResponse:
+        log_gateway_call(system="ihms", operation="POST /api/holds", headers=headers)
         payload = CreateHoldRequest(items=items)
         try:
             response = await self._client.post(
@@ -68,6 +70,7 @@ class IhmsClient:
     async def get_products(
         self, headers: ObservabilityHeaders
     ) -> list[ProductCatalogItemResponse]:
+        log_gateway_call(system="ihms", operation="GET /api/products", headers=headers)
         try:
             response = await self._client.get(
                 f"{self._base_url}/api/products",
@@ -82,6 +85,7 @@ class IhmsClient:
         return [ProductCatalogItemResponse.model_validate(item) for item in data]
 
     async def get_inventory(self, headers: ObservabilityHeaders) -> list[InventoryItemResponse]:
+        log_gateway_call(system="ihms", operation="GET /api/inventory", headers=headers)
         try:
             response = await self._client.get(
                 f"{self._base_url}/api/inventory",
@@ -99,6 +103,11 @@ class IhmsClient:
         self, hold_id: str, headers: ObservabilityHeaders
     ) -> HoldResponse | None:
         """Mark hold fulfilled — inventory stays deducted (sale committed)."""
+        log_gateway_call(
+            system="ihms",
+            operation=f"POST /api/holds/{hold_id}/fulfill",
+            headers=headers,
+        )
         try:
             response = await self._client.post(
                 f"{self._base_url}/api/holds/{hold_id}/fulfill",

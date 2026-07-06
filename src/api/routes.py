@@ -227,6 +227,83 @@ class ConfirmBody(BaseModel):
     )
 
 
+class PlaceOrderBody(BaseModel):
+    items: list[HoldLineItemBody] = Field(min_length=1)
+    customer_name: str | None = Field(
+        default=None,
+        description="Optional — defaults to Guest",
+    )
+
+
+class CheckoutBody(BaseModel):
+    """One-shot checkout: create session and place order atomically."""
+
+    items: list[HoldLineItemBody] = Field(min_length=1)
+    customer_name: str | None = Field(default=None)
+
+
+@sessions_router.post("/{session_id}/place-order", response_model=SessionResponse)
+async def place_order(
+    session_id: UUID,
+    body: PlaceOrderBody,
+    request: Request,
+    checkout: CheckoutDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> SessionResponse:
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    session = checkout.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    headers = checkout.observability_for_session(
+        session,
+        request.state.request_id,
+        request.state.trace_id,
+    )
+    customer = (body.customer_name or "").strip() or "Guest"
+    try:
+        result = await checkout.place_order(
+            session_id,
+            [(item.sku, item.quantity) for item in body.items],
+            customer,
+            idempotency_key,
+            headers,
+        )
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(result.session)
+
+
+@sessions_router.post("/checkout", response_model=SessionResponse, status_code=201)
+async def checkout(
+    body: CheckoutBody,
+    request: Request,
+    checkout: CheckoutDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> SessionResponse:
+    """Amazon-style one-click checkout — session + hold + EC-OPS order in one call."""
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    session = checkout.create_session(str(uuid4()))
+    headers = checkout.observability_for_session(
+        session,
+        request.state.request_id,
+        request.state.trace_id,
+    )
+    customer = (body.customer_name or "").strip() or "Guest"
+    try:
+        result = await checkout.place_order(
+            session.session_id,
+            [(item.sku, item.quantity) for item in body.items],
+            customer,
+            idempotency_key,
+            headers,
+        )
+    except Exception as exc:
+        raise http_exception_for_error(exc) from exc
+    return SessionResponse.from_session(result.session)
+
+
 @sessions_router.post("", response_model=SessionCreateResponse, status_code=201)
 async def create_session(
     request: Request,

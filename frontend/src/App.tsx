@@ -1,170 +1,125 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useCatalog, useCheckoutMutations, useSession } from "@/api/hooks";
+import { formatCurrency } from "@/api/normalize";
 import { isApiError } from "@/api/types";
 import type { CartItem, ObservabilityIds } from "@/api/types";
 import { addToCart, removeFromCart, syncCartWithCatalog } from "@/cart";
 import { CartPanel } from "@/components/CartPanel";
 import { CatalogGrid } from "@/components/CatalogGrid";
-import { CheckoutPanel } from "@/components/CheckoutPanel";
 import { DevObservabilityPanel } from "@/components/DevObservabilityPanel";
 
 function newIdempotencyKey(): string {
   return crypto.randomUUID();
 }
 
-const ACTIVE_CHECKOUT_STORAGE_KEY = "checkout-orchestrator.active-checkout";
+const CHECKOUT_STORAGE_KEY = "checkout-orchestrator.checkout";
 
-interface StoredActiveCheckout {
+interface StoredCheckout {
   sessionId: string;
-  confirmIdempotencyKey: string;
+  idempotencyKey: string;
 }
 
-function readStoredActiveCheckout(): StoredActiveCheckout | null {
+function readStoredCheckout(): StoredCheckout | null {
   try {
-    const raw = window.sessionStorage.getItem(ACTIVE_CHECKOUT_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(CHECKOUT_STORAGE_KEY);
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<StoredActiveCheckout>;
-    if (parsed.sessionId && parsed.confirmIdempotencyKey) {
-      return {
-        sessionId: parsed.sessionId,
-        confirmIdempotencyKey: parsed.confirmIdempotencyKey,
-      };
+    const parsed = JSON.parse(raw) as Partial<StoredCheckout>;
+    if (parsed.sessionId && parsed.idempotencyKey) {
+      return { sessionId: parsed.sessionId, idempotencyKey: parsed.idempotencyKey };
     }
   } catch {
-    // Storage can be unavailable in restricted browser contexts.
+    // ignore
   }
   return null;
 }
 
-function writeStoredActiveCheckout(sessionId: string, confirmIdempotencyKey: string): void {
+function writeStoredCheckout(sessionId: string, idempotencyKey: string): void {
   try {
     window.sessionStorage.setItem(
-      ACTIVE_CHECKOUT_STORAGE_KEY,
-      JSON.stringify({ sessionId, confirmIdempotencyKey }),
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({ sessionId, idempotencyKey }),
     );
   } catch {
-    // A volatile in-memory key still protects same-page retries.
+    // ignore
   }
 }
 
-function clearStoredActiveCheckout(): void {
+function clearStoredCheckout(): void {
   try {
-    window.sessionStorage.removeItem(ACTIVE_CHECKOUT_STORAGE_KEY);
+    window.sessionStorage.removeItem(CHECKOUT_STORAGE_KEY);
   } catch {
-    // Nothing to clear when storage is unavailable.
+    // ignore
   }
 }
 
-function isTerminalState(state: string): boolean {
-  return ["CONFIRMED", "RECONCILED", "ABANDONED", "COMPENSATED"].includes(state);
-}
-
-function isActiveCheckout(state: string): boolean {
-  return state === "HELD" || state === "FULFILL_PENDING";
+function isOrderComplete(state: string): boolean {
+  return ["CONFIRMED", "RECONCILED"].includes(state);
 }
 
 export function App() {
-  const storedActiveCheckout = useMemo(() => readStoredActiveCheckout(), []);
+  const stored = useMemo(() => readStoredCheckout(), []);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
-  const [sessionId, setSessionId] = useState<string | null>(
-    storedActiveCheckout?.sessionId ?? null,
-  );
+  const [sessionId, setSessionId] = useState<string | null>(stored?.sessionId ?? null);
   const [observability, setObservability] = useState<ObservabilityIds | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const confirmIdempotencyKeyRef = useRef<string | null>(
-    storedActiveCheckout?.confirmIdempotencyKey ?? null,
-  );
+  const idempotencyKeyRef = useRef<string | null>(stored?.idempotencyKey ?? null);
 
   const sessionQuery = useSession(sessionId);
   const session = sessionQuery.data?.data ?? null;
-  const catalogQuery = useCatalog({
-    refetchInterval: isActiveCheckout(session?.state ?? "") ? 2000 : false,
-  });
-  const { startCheckout, confirmCheckout, abandonCheckout } = useCheckoutMutations(setObservability);
-
-  const checkoutActive = Boolean(session && isActiveCheckout(session.state));
+  const catalogQuery = useCatalog();
+  const { placeOrder } = useCheckoutMutations(setObservability);
 
   const products = useMemo(() => catalogQuery.data?.data ?? [], [catalogQuery.data]);
+  const orderComplete = Boolean(session && isOrderComplete(session.state));
+  const fulfillPending = session?.state === "FULFILL_PENDING";
+  const checkoutBusy = placeOrder.isPending;
 
   useEffect(() => {
-    if (session && isTerminalState(session.state)) {
-      clearStoredActiveCheckout();
+    if (orderComplete) {
+      clearStoredCheckout();
     }
-  }, [session]);
+  }, [orderComplete]);
 
   useEffect(() => {
-    setCart((current) => {
-      if (current.length === 0) {
-        return current;
-      }
-      return syncCartWithCatalog(current, products);
-    });
+    setCart((current) => (current.length === 0 ? current : syncCartWithCatalog(current, products)));
   }, [products]);
 
-  const handleStartCheckout = async (checkoutCart: CartItem[]) => {
+  const runPlaceOrder = async (checkoutCart: CartItem[], existingSessionId?: string | null) => {
     if (checkoutCart.length === 0) {
       return;
     }
     setError(null);
+    const idempotencyKey = idempotencyKeyRef.current ?? newIdempotencyKey();
+    idempotencyKeyRef.current = idempotencyKey;
     try {
-      const result = await startCheckout.mutateAsync({
+      const result = await placeOrder.mutateAsync({
         cart: checkoutCart,
-        customerName: customerName.trim(),
+        customerName: customerName.trim() || undefined,
+        idempotencyKey,
+        sessionId: existingSessionId ?? undefined,
       });
-      const confirmIdempotencyKey = newIdempotencyKey();
-      confirmIdempotencyKeyRef.current = confirmIdempotencyKey;
-      writeStoredActiveCheckout(result.data.sessionId, confirmIdempotencyKey);
+      writeStoredCheckout(result.data.sessionId, idempotencyKey);
       setSessionId(result.data.sessionId);
+      if (isOrderComplete(result.data.state)) {
+        setCart([]);
+      }
     } catch (err) {
       if (isApiError(err) && err.status === 409) {
         void catalogQuery.refetch();
       }
-      setError(isApiError(err) ? err.detail : "Checkout failed");
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!sessionId) {
-      return;
-    }
-    setError(null);
-    try {
-      const idempotencyKey = confirmIdempotencyKeyRef.current ?? newIdempotencyKey();
-      confirmIdempotencyKeyRef.current = idempotencyKey;
-      writeStoredActiveCheckout(sessionId, idempotencyKey);
-      const result = await confirmCheckout.mutateAsync({ sessionId, idempotencyKey });
-      if (isTerminalState(result.data.state)) {
-        clearStoredActiveCheckout();
-        setCart([]);
-      }
-    } catch (err) {
-      setError(isApiError(err) ? err.detail : "Confirm failed");
-    }
-  };
-
-  const handleAbandon = async () => {
-    if (!sessionId) {
-      return;
-    }
-    setError(null);
-    try {
-      await abandonCheckout.mutateAsync(sessionId);
-      clearStoredActiveCheckout();
-      setCart([]);
-    } catch (err) {
-      setError(isApiError(err) ? err.detail : "Abandon failed");
+      setError(isApiError(err) ? err.detail : "Could not place order");
     }
   };
 
   return (
     <div className="layout">
       <header className="header">
-        <h1>Checkout Orchestrator</h1>
-        <p className="muted">Browse inventory, place a hold, confirm or abandon.</p>
+        <h1>Shop</h1>
+        <p className="muted">Live inventory — one-click checkout.</p>
       </header>
 
       {error && (
@@ -173,50 +128,106 @@ export function App() {
         </div>
       )}
 
-      {catalogQuery.isLoading && <p>Loading catalog…</p>}
+      {catalogQuery.isLoading && <p>Loading inventory…</p>}
       {catalogQuery.isError && (
         <p className="error" role="alert">
-          Failed to load catalog
+          Failed to load inventory
           {catalogQuery.error
-            ? `: ${isApiError(catalogQuery.error) ? catalogQuery.error.detail : catalogQuery.error instanceof Error ? catalogQuery.error.message : String(catalogQuery.error)}`
+            ? `: ${isApiError(catalogQuery.error) ? catalogQuery.error.detail : String(catalogQuery.error)}`
             : ""}
           .
         </p>
       )}
 
-      <div className="main-grid">
-        <div className="stack">
-          <CatalogGrid
-            products={products}
-            cart={cart}
-            onAdd={(item) => setCart((current) => addToCart(current, item))}
-            disabled={checkoutActive || startCheckout.isPending}
-          />
-          <CartPanel
-            cart={cart}
-            customerName={customerName}
-            onCustomerNameChange={setCustomerName}
-            onCartChange={setCart}
-            onRemove={(sku) => setCart((current) => removeFromCart(current, sku))}
-            onCheckout={(checkoutCart) => void handleStartCheckout(checkoutCart)}
-            checkoutPending={startCheckout.isPending}
-            disabled={checkoutActive}
-          />
-        </div>
-
-        <div className="stack">
-          {session && (
-            <CheckoutPanel
-              session={session}
-              onConfirm={() => void handleConfirm()}
-              onAbandon={() => void handleAbandon()}
-              confirmPending={confirmCheckout.isPending}
-              abandonPending={abandonCheckout.isPending}
-            />
+      {orderComplete && session && (
+        <section className="panel order-complete" role="status">
+          <h2>Order placed</h2>
+          <p>
+            Thank you{session.customerName ? `, ${session.customerName}` : ""}! Your order is{" "}
+            <strong>PENDING</strong> in EC-OPS.
+          </p>
+          {session.orderId && (
+            <p>
+              Order ID: <code>{session.orderId}</code>
+            </p>
           )}
-          <DevObservabilityPanel ids={observability} />
+          <p className="muted">
+            Trace: correlation <code>{session.correlationId}</code>
+          </p>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              setSessionId(null);
+              idempotencyKeyRef.current = null;
+              clearStoredCheckout();
+            }}
+          >
+            Continue shopping
+          </button>
+        </section>
+      )}
+
+      {fulfillPending && session && (
+        <section className="panel" role="alert">
+          <h2>Finalizing your order</h2>
+          <p>Order {session.orderId} was created. Retrying inventory commit…</p>
+          <button
+            type="button"
+            className="primary"
+            disabled={checkoutBusy}
+            onClick={() => void runPlaceOrder([], session.sessionId)}
+          >
+            {checkoutBusy ? "Retrying…" : "Retry"}
+          </button>
+        </section>
+      )}
+
+      {!orderComplete && !fulfillPending && (
+        <div className="main-grid">
+          <div className="stack">
+            <CatalogGrid
+              products={products}
+              cart={cart}
+              onAdd={(item) => setCart((current) => addToCart(current, item))}
+              disabled={checkoutBusy}
+            />
+            <CartPanel
+              cart={cart}
+              customerName={customerName}
+              onCustomerNameChange={setCustomerName}
+              onCartChange={setCart}
+              onRemove={(sku) => setCart((current) => removeFromCart(current, sku))}
+              onCheckout={(checkoutCart) => void runPlaceOrder(checkoutCart)}
+              checkoutPending={checkoutBusy}
+              disabled={false}
+            />
+          </div>
+
+          <div className="stack">
+            {session && !isOrderComplete(session.state) && session.state !== "FULFILL_PENDING" && (
+              <section className="panel muted-panel">
+                <h2>Checkout status</h2>
+                <p>State: {session.state}</p>
+              </section>
+            )}
+            <DevObservabilityPanel ids={observability} />
+          </div>
         </div>
-      </div>
+      )}
+
+      {orderComplete && session && session.lineItems.length > 0 && (
+        <section className="panel">
+          <h3>Items</h3>
+          <ul className="checkout-lines">
+            {session.lineItems.map((line) => (
+              <li key={line.sku}>
+                {line.name} × {line.quantity} — {formatCurrency(line.unitPrice * line.quantity)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -162,6 +162,9 @@ async def test_catalog_returns_502_when_ihms_unavailable_and_fallback_disabled()
             respx.get("http://ihms.test/api/products").mock(
                 side_effect=httpx.ConnectError("All connection attempts failed")
             )
+            respx.get("http://ihms.test/api/inventory").mock(
+                side_effect=httpx.ConnectError("All connection attempts failed")
+            )
             response = await client.get("/catalog")
     assert response.status_code == 502
     assert "Cannot reach KB-IHMS" in response.json()["detail"]

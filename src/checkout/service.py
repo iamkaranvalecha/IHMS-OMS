@@ -5,18 +5,19 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from src.catalog.ecops_mapping import EcopsMapping
-from src.catalog.ihms_cache import IhmsCatalogCache
+from src.catalog.ihms_live import IhmsLiveCatalog
 from src.catalog.inventory import (
     CatalogProductWithAvailability,
     get_product_with_inventory,
     list_catalog_with_inventory,
 )
+from src.catalog.product_metadata import ProductMetadataCatalog
 from src.catalog.provider import CatalogProduct, CatalogProvider, JsonCatalogProvider
 from src.gateway.ecops_client import EcOpsClient
 from src.gateway.exceptions import GatewayError
 from src.gateway.headers import ObservabilityHeaders
 from src.gateway.ihms_client import IhmsClient
-from src.saga.coordinator import ConfirmResult, SagaCoordinator
+from src.saga.coordinator import ConfirmResult, PlaceOrderResult, SagaCoordinator
 from src.saga.idempotency import IdempotencyStore, InMemoryIdempotencyStore
 from src.session.models import CheckoutSession, SessionState
 from src.session.store import LockedSessionStore, SessionStore
@@ -35,7 +36,8 @@ class CheckoutService:
     ecops: EcOpsClient
     idempotency: IdempotencyStore
     saga: SagaCoordinator
-    ihms_catalog_cache: IhmsCatalogCache | None = None
+    ihms_live_catalog: IhmsLiveCatalog | None = None
+    product_metadata: ProductMetadataCatalog | None = None
     ecops_mapping: EcopsMapping | None = None
     json_catalog_fallback: JsonCatalogProvider | None = None
     settings: Settings | None = None
@@ -49,7 +51,8 @@ class CheckoutService:
         ihms: IhmsClient,
         ecops: EcOpsClient,
         idempotency: IdempotencyStore | None = None,
-        ihms_catalog_cache: IhmsCatalogCache | None = None,
+        ihms_live_catalog: IhmsLiveCatalog | None = None,
+        product_metadata: ProductMetadataCatalog | None = None,
         ecops_mapping: EcopsMapping | None = None,
         json_catalog_fallback: JsonCatalogProvider | None = None,
         settings: Settings | None = None,
@@ -73,7 +76,8 @@ class CheckoutService:
             ecops=ecops,
             idempotency=idem,
             saga=saga,
-            ihms_catalog_cache=ihms_catalog_cache,
+            ihms_live_catalog=ihms_live_catalog,
+            product_metadata=product_metadata,
             ecops_mapping=ecops_mapping,
             json_catalog_fallback=json_catalog_fallback,
             settings=settings,
@@ -95,17 +99,28 @@ class CheckoutService:
         )
 
     async def _refresh_ihms_catalog(self, headers: ObservabilityHeaders) -> None:
-        if self.ihms_catalog_cache is None or self.ecops_mapping is None:
+        if (
+            self.ihms_live_catalog is None
+            or self.ecops_mapping is None
+            or self.product_metadata is None
+        ):
             return
+        mode = self.settings.ihms_catalog_mode if self.settings else "auto"
         try:
-            await self.ihms_catalog_cache.refresh(self.ihms, self.ecops_mapping, headers)
+            await self.ihms_live_catalog.refresh(
+                self.ihms,
+                self.product_metadata,
+                self.ecops_mapping,
+                headers,
+                mode=mode,
+            )
         except GatewayError as exc:
             if self._fallback_enabled():
                 logger.warning(
                     "IHMS catalog unavailable at %s; using JSON catalog fallback",
                     self.settings.ihms_base_url if self.settings else "IHMS",
                 )
-                self.ihms_catalog_cache.load_from_json_catalog(
+                self.ihms_live_catalog.load_from_json_catalog(
                     self.json_catalog_fallback,
                     self.ecops_mapping,
                 )
@@ -144,9 +159,9 @@ class CheckoutService:
         self,
         headers: ObservabilityHeaders,
     ) -> list[CatalogProductWithAvailability]:
-        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+        if self.ihms_live_catalog is not None and self.ecops_mapping is not None:
             await self._refresh_ihms_catalog(headers)
-            products = self.ihms_catalog_cache.list()
+            products = self.ihms_live_catalog.list()
             if products:
                 return products
             if self._fallback_enabled():
@@ -168,9 +183,9 @@ class CheckoutService:
         sku: str,
         headers: ObservabilityHeaders,
     ) -> CatalogProductWithAvailability | None:
-        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+        if self.ihms_live_catalog is not None and self.ecops_mapping is not None:
             await self._refresh_ihms_catalog(headers)
-            product = self.ihms_catalog_cache.get(sku)
+            product = self.ihms_live_catalog.get(sku)
             if product is not None:
                 return product
             if self._fallback_enabled():
@@ -191,13 +206,36 @@ class CheckoutService:
         customer_name: str,
         headers: ObservabilityHeaders,
     ) -> CheckoutSession:
-        if self.ihms_catalog_cache is not None and self.ecops_mapping is not None:
+        if self.ihms_live_catalog is not None and self.ecops_mapping is not None:
             await self._refresh_ihms_catalog(headers)
-            if not self.ihms_catalog_cache.list() and not self._fallback_enabled():
+            if not self.ihms_live_catalog.list() and not self._fallback_enabled():
                 raise self._ihms_unreachable_message(
                     GatewayError("IHMS catalog is empty and JSON fallback is disabled")
                 )
         return await self.saga.place_hold(session_id, items, customer_name, headers)
+
+    async def place_order(
+        self,
+        session_id: UUID,
+        items: list[tuple[str, int]],
+        customer_name: str,
+        idempotency_key: str,
+        headers: ObservabilityHeaders,
+    ) -> PlaceOrderResult:
+        """Atomic checkout: IHMS hold → EC-OPS PENDING order → inventory finalize."""
+        if self.ihms_live_catalog is not None and self.ecops_mapping is not None:
+            await self._refresh_ihms_catalog(headers)
+            if not self.ihms_live_catalog.list() and not self._fallback_enabled():
+                raise self._ihms_unreachable_message(
+                    GatewayError("IHMS catalog is empty and JSON fallback is disabled")
+                )
+        return await self.saga.place_order(
+            session_id,
+            items,
+            customer_name,
+            idempotency_key,
+            headers,
+        )
 
     async def confirm(
         self,

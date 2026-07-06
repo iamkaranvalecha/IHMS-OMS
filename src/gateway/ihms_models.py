@@ -30,6 +30,7 @@ class ProductCatalogItemResponse(BaseModel):
 
 class InventoryItemResponse(BaseModel):
     product_id: str = Field(alias="productId")
+    name: str = ""
     available_quantity: int = Field(alias="availableQuantity")
 
     model_config = {"populate_by_name": True}

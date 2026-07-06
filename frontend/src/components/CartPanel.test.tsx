@@ -37,7 +37,7 @@ describe("CartPanel", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Quantity for Widget"), { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Place hold & checkout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place order" }));
 
     expect(onCartChange).toHaveBeenCalledWith([{ ...cart[0], quantity: 5 }]);
     expect(onCheckout).toHaveBeenCalledWith([{ ...cart[0], quantity: 5 }]);
@@ -67,7 +67,7 @@ describe("CartPanel", () => {
     );
 
     fireEvent.change(screen.getByLabelText("Quantity for Widget"), { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: "Place hold & checkout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Place order" }));
 
     expect(onCartChange).toHaveBeenCalledWith([{ ...unknownStockCart[0], quantity: 4, maxQuantity: 4 }]);
     expect(onCheckout).toHaveBeenCalledWith([{ ...unknownStockCart[0], quantity: 4, maxQuantity: 4 }]);

@@ -10,7 +10,8 @@ from src import __version__
 from src.api.middleware import ObservabilityMiddleware
 from src.api.routes import catalog_router, health_router, sessions_router
 from src.catalog.ecops_mapping import EcopsMapping
-from src.catalog.ihms_cache import IhmsCatalogAdapter, IhmsCatalogCache
+from src.catalog.ihms_live import IhmsLiveCatalog, IhmsLiveCatalogAdapter
+from src.catalog.product_metadata import ProductMetadataCatalog
 from src.catalog.provider import JsonCatalogProvider
 from src.checkout.service import CheckoutService
 from src.gateway.factory import gateway_clients
@@ -26,12 +27,13 @@ async def lifespan(app: FastAPI):
     """Wire gateway clients, catalog, and session store."""
     settings: Settings = app.state.settings
     ecops_mapping = EcopsMapping.from_path(settings.ecops_mapping_path)
+    product_metadata = ProductMetadataCatalog.from_path(settings.ihms_products_metadata_path)
     json_catalog = JsonCatalogProvider(settings.catalog_path)
-    ihms_catalog_cache: IhmsCatalogCache | None = None
+    ihms_live_catalog: IhmsLiveCatalog | None = None
     json_catalog_fallback: JsonCatalogProvider | None = None
     if settings.catalog_source == "ihms":
-        ihms_catalog_cache = IhmsCatalogCache()
-        catalog = IhmsCatalogAdapter(ihms_catalog_cache)
+        ihms_live_catalog = IhmsLiveCatalog()
+        catalog = IhmsLiveCatalogAdapter(ihms_live_catalog)
         json_catalog_fallback = json_catalog
     else:
         catalog = json_catalog
@@ -43,14 +45,17 @@ async def lifespan(app: FastAPI):
             sessions=sessions,
             ihms=ihms,
             ecops=ecops,
-            ihms_catalog_cache=ihms_catalog_cache,
+            ihms_live_catalog=ihms_live_catalog,
+            product_metadata=product_metadata,
             ecops_mapping=ecops_mapping,
             json_catalog_fallback=json_catalog_fallback,
             settings=settings,
         )
         logger.info(
-            "checkout orchestrator ready: catalog_source=%s ihms_base_url=%s ecops_base_url=%s",
+            "checkout orchestrator ready: catalog_source=%s ihms_catalog_mode=%s "
+            "ihms_base_url=%s ecops_base_url=%s",
             settings.catalog_source,
+            settings.ihms_catalog_mode,
             settings.ihms_base_url,
             settings.ecops_base_url,
         )
