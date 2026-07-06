@@ -10,15 +10,20 @@
 param(
     [switch]$Check,
     [switch]$Detached,
-    [switch]$Help
+    [switch]$Help,
+    [string]$Username,
+    [string]$Password
 )
 
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\lib\env-utils.ps1"
 Set-Location (Get-RepoRoot)
 
+if ($Username) { $env:ECOPS_USERNAME = $Username }
+if ($Password) { $env:ECOPS_PASSWORD = $Password }
+
 if ($Help) {
-    Write-Host "Usage: real-upstream.ps1 [-Check]"
+    Write-Host "Usage: real-upstream.ps1 [-Check] [-Detached] [-Username name] [-Password pass]"
     Write-Host "  Ensures .env for real upstreams, fetches EC-OPS JWT, starts orchestrator + UI."
     exit 0
 }
@@ -40,7 +45,7 @@ Set-EnvVar -Key ECOPS_MAPPING_PATH -Value "/app/catalog/ecops-mapping.json"
 Write-Host "==> Checking KB-IHMS catalog at http://localhost:5000"
 $ihmsPath = Test-IhmsCatalogReachable -BaseUrl "http://localhost:5000"
 if (-not $ihmsPath) {
-    Write-Error "KB-IHMS not reachable on http://localhost:5000 — start it first (see task: EC-OPS/KB-IHMS: Start upstream Docker)."
+    Write-Error "KB-IHMS not reachable on http://localhost:5000 - start it first (see task: Upstreams: Start KB-IHMS + EC-OPS)."
     exit 1
 }
 Write-Host "    OK: GET http://localhost:5000${ihmsPath}"
@@ -55,9 +60,9 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "==> Checking EC-OPS at http://localhost:8002/health"
 if (-not (Test-UrlReachable -Url "http://localhost:8002/health")) {
-    Write-Warning "EC-OPS /health not found — trying /docs"
+    Write-Warning "EC-OPS /health not found - trying /docs"
     if (-not (Test-UrlReachable -Url "http://localhost:8002/docs")) {
-        Write-Error "EC-OPS not reachable on http://localhost:8002 — start it first (see task: EC-OPS: Start upstream Docker)."
+        Write-Error "EC-OPS not reachable on http://localhost:8002 - start it first (see task: Upstreams: Start KB-IHMS + EC-OPS)."
         exit 1
     }
 }
@@ -69,7 +74,7 @@ if ($Check) {
 
 Write-Host "==> Fetching EC-OPS bearer token into .env"
 if ($env:ECOPS_USERNAME -and $env:ECOPS_PASSWORD) {
-    & "$PSScriptRoot\ecops-token.ps1"
+    & "$PSScriptRoot\ecops-token.ps1" -Username $env:ECOPS_USERNAME -Password $env:ECOPS_PASSWORD
 }
 else {
     Write-Host "    Set ECOPS_USERNAME and ECOPS_PASSWORD to skip prompts, or enter them now:"

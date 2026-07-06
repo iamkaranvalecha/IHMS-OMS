@@ -219,8 +219,12 @@
           "-NoProfile",
           "-ExecutionPolicy",
           "Bypass",
-          "-Command",
-          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/ecops-token.ps1'"
+          "-File",
+          "${workspaceFolder}/scripts/ecops-token.ps1",
+          "-Username",
+          "${input:ecopsUsername}",
+          "-Password",
+          "${input:ecopsPassword}"
         ]
       },
       "presentation": {
@@ -260,8 +264,12 @@
           "-NoProfile",
           "-ExecutionPolicy",
           "Bypass",
-          "-Command",
-          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1'"
+          "-File",
+          "${workspaceFolder}/scripts/real-upstream.ps1",
+          "-Username",
+          "${input:ecopsUsername}",
+          "-Password",
+          "${input:ecopsPassword}"
         ]
       },
       "runOptions": {
@@ -285,8 +293,13 @@
           "-NoProfile",
           "-ExecutionPolicy",
           "Bypass",
-          "-Command",
-          "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1' -Detached"
+          "-File",
+          "${workspaceFolder}/scripts/real-upstream.ps1",
+          "-Detached",
+          "-Username",
+          "${input:ecopsUsername}",
+          "-Password",
+          "${input:ecopsPassword}"
         ]
       },
       "runOptions": {
@@ -401,8 +414,8 @@
           "-NoProfile",
           "-ExecutionPolicy",
           "Bypass",
-          "-Command",
-          "& '${workspaceFolder}/scripts/mock-stack.ps1' -Check; docker compose --profile obs up --build --wait"
+          "-File",
+          "${workspaceFolder}/scripts/obs-up.ps1"
         ]
       },
       "presentation": {

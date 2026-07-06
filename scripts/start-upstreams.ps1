@@ -23,7 +23,7 @@ function Start-RepoCompose {
 
     $resolved = Resolve-Path -Path $Path -ErrorAction SilentlyContinue
     if (-not $resolved) {
-        throw "$Name repo not found at $Path — clone it as a sibling folder first."
+        throw "$Name repo not found at $Path - clone it as a sibling folder first."
     }
 
     Write-Host "==> Starting $Name at $Url"

@@ -6,7 +6,9 @@
 #   .\scripts\ecops-token.ps1 -Print   # stdout only, do not update .env
 param(
     [switch]$Print,
-    [switch]$Help
+    [switch]$Help,
+    [string]$Username,
+    [string]$Password
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +16,9 @@ $ErrorActionPreference = "Stop"
 Set-Location (Get-RepoRoot)
 
 Import-DotEnv
+
+if ($Username) { $env:ECOPS_USERNAME = $Username }
+if ($Password) { $env:ECOPS_PASSWORD = $Password }
 
 if ($Help) {
     Write-Host "Usage: ecops-token.ps1 [-Print]"
@@ -51,7 +56,7 @@ try {
         -Body @{ username = $username; password = $password }
 }
 catch {
-    Write-Error "Failed to fetch token from ${ecopsUrl}/auth/token — is EC-OPS running? $_"
+    Write-Error "Failed to fetch token from ${ecopsUrl}/auth/token - is EC-OPS running? $_"
     exit 1
 }
 
