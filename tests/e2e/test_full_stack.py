@@ -42,8 +42,11 @@ async def test_catalog_lists_products(api: httpx.AsyncClient) -> None:
     assert response.status_code == 200
     products = response.json()
     assert len(products) >= 1
-    assert products[0]["sku"] == "WIDGET-001"
-    assert "available_quantity" in products[0]
+    skus = {item["sku"] for item in products}
+    assert "WIDGET-001" in skus
+    widget = next(item for item in products if item["sku"] == "WIDGET-001")
+    assert "available_quantity" in widget
+    assert widget["available_quantity"] >= 1
 
 
 @pytest.mark.e2e
