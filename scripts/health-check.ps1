@@ -20,6 +20,14 @@ Write-Host "==> Upstreams"
 $upstreams = Invoke-RestMethod "http://localhost:$($ports.Orchestrator)/health/upstreams"
 $upstreams | ConvertTo-Json -Depth 6
 
+if ($upstreams.ecops.auth_ok -ne $true) {
+    Write-Warning "EC-OPS auth is NOT OK - Place order will fail with 'Invalid or expired credentials'"
+    Write-Warning "Run: .\scripts\refresh-ecops-token.ps1 -Username admin -Password 'Password1!'"
+}
+else {
+    Write-Host "==> EC-OPS auth OK"
+}
+
 Write-Host ""
 Write-Host "==> Catalog (first item)"
 $catalog = Invoke-RestMethod "http://localhost:$($ports.Orchestrator)/catalog"

@@ -189,3 +189,46 @@ function Write-StackSummary {
     Write-Host ""
     Write-Host "Place order: open UI, add to cart, click Place order"
 }
+
+function Assert-EcopsBearerToken {
+    Import-DotEnv
+    $token = $env:ECOPS_BEARER_TOKEN
+    if (-not $token -or $token.Trim() -eq "") {
+        throw "ECOPS_BEARER_TOKEN is empty in .env - run scripts/ecops-token.ps1 first"
+    }
+    Write-Host "==> ECOPS_BEARER_TOKEN loaded ($($token.Length) chars)"
+}
+
+function Start-RealUpstreamOrchestrator {
+    param([switch]$Detached)
+
+    Assert-EcopsBearerToken
+    $composeArgs = @(
+        "up", "orchestrator", "ui",
+        "--no-deps", "--build", "--force-recreate"
+    )
+    if ($Detached) {
+        $composeArgs += @("-d", "--wait")
+    }
+    Invoke-DockerCompose @composeArgs
+}
+
+function Test-OrchestratorEcopsAuth {
+    $ports = Get-StackPorts
+    try {
+        $health = Invoke-RestMethod "http://localhost:$($ports.Orchestrator)/health/upstreams"
+        $ecops = $health.ecops
+        if ($ecops.auth_ok -eq $true) {
+            Write-Host "==> EC-OPS auth OK (token accepted by upstream)"
+            return $true
+        }
+        $msg = if ($ecops.auth_error) { $ecops.auth_error } else { "EC-OPS auth check failed" }
+        Write-Warning $msg
+        Write-Warning "Fix: .\scripts\refresh-ecops-token.ps1 -Username admin -Password 'Password1!'"
+        return $false
+    }
+    catch {
+        Write-Warning "Could not verify EC-OPS auth: $_"
+        return $false
+    }
+}

@@ -234,6 +234,31 @@
       "problemMatcher": []
     },
     {
+      "label": "EC-OPS: Refresh token + restart orchestrator",
+      "detail": "Fix 'Invalid or expired credentials' on Place order",
+      "type": "shell",
+      "command": "ECOPS_USERNAME='${input:ecopsUsername}' ECOPS_PASSWORD='${input:ecopsPassword}' bash scripts/refresh-ecops-token.sh",
+      "windows": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/refresh-ecops-token.ps1",
+          "-Username",
+          "${input:ecopsUsername}",
+          "-Password",
+          "${input:ecopsPassword}"
+        ]
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Docker: Check real upstreams",
       "type": "shell",
       "command": "bash scripts/real-upstream.sh --check",

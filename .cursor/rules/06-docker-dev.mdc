@@ -78,6 +78,14 @@ Bash equivalents (`*.sh`) exist for Linux/macOS and cloud agents.
 | `/catalog` 502 "All connection attempts failed" | Run `mock-stack.ps1 -Check` or `real-upstream.ps1 -Check`; fix `.env` URLs |
 | WIDGET-001 instead of real products | Real upstream mode not active — check `IHMS_BASE_URL` |
 | Port bind errors | Set `ORCHESTRATOR_PORT` / `UI_PORT` in `.env` |
-| EC-OPS 401 on confirm | Re-run `ecops-token.ps1` or task **EC-OPS: Fetch bearer token** |
+| EC-OPS 401 on confirm | Re-run task **EC-OPS: Refresh token + restart orchestrator** or `.\scripts\refresh-ecops-token.ps1` |
 
 Full reference: [docs/DOCKER.md](../docs/DOCKER.md)
+
+## PowerShell 7 check
+
+```powershell
+pwsh -Version   # must be 7.x
+```
+
+If missing: https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows

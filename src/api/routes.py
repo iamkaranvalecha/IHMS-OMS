@@ -76,6 +76,26 @@ async def upstream_health(request: Request) -> dict[str, object]:
     except Exception as exc:
         ecops_status["error"] = str(exc)
 
+    ecops_status["token_configured"] = bool(settings.ecops_bearer_token.strip())
+    if settings.ecops_bearer_token.strip():
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                auth_response = await client.get(
+                    f"{settings.ecops_base_url.rstrip('/')}/orders",
+                    headers={"Authorization": f"Bearer {settings.ecops_bearer_token}"},
+                )
+            ecops_status["auth_ok"] = auth_response.status_code != 401
+            if auth_response.status_code == 401:
+                ecops_status["auth_error"] = "Invalid or expired credentials - re-run ecops-token and recreate orchestrator"
+        except Exception as exc:
+            ecops_status["auth_ok"] = False
+            ecops_status["auth_error"] = str(exc)
+    else:
+        ecops_status["auth_ok"] = False
+        ecops_status["auth_error"] = "ECOPS_BEARER_TOKEN not set - run scripts/ecops-token.ps1"
+
     return {
         "catalog_source": settings.catalog_source,
         "catalog_fallback_to_json": settings.catalog_fallback_to_json,

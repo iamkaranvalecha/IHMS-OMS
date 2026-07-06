@@ -91,7 +91,7 @@ CMD wrappers (double-click or `cmd.exe`): `scripts\full-stack.cmd`, `scripts\rea
 | Port already in use | Change `ORCHESTRATOR_PORT` / `UI_PORT` in `.env` |
 | Script execution disabled | Use `-ExecutionPolicy Bypass` (wrappers do this) or `Set-ExecutionPolicy RemoteSigned` |
 | Real upstream `.env` breaks mock stack | Run `.\scripts\mock-stack.ps1 -Check` before `docker compose up` |
-| `Join-Path` / `$LASTEXITCODE` errors | Scripts support **Windows PowerShell 5.1** (built-in) and PowerShell 7+ (`pwsh`) |
+| Task runs Windows PowerShell 5.1 instead of 7 | Reload window after pull; confirm `pwsh -Version` works; check `.vscode/settings.json` |
 
 ## Real KB-IHMS + EC-OPS (demo / interview)
 
@@ -139,3 +139,5 @@ docker compose up orchestrator ui --no-deps --build
 | `Bind for 0.0.0.0:5173 failed` | KB-IHMS frontend uses 5173 — checkout UI defaults to **5180** |
 | `Bind for 0.0.0.0:8002 failed` | Real EC-OPS uses 8002 — mock defaults to **8012**, or use real upstream mode above |
 | `Bind for 0.0.0.0:8000 failed` | Set `ORCHESTRATOR_PORT=8001` in `.env` |
+| Place order: **Invalid or expired credentials** | Orchestrator container has stale/empty JWT — task **EC-OPS: Refresh token + restart orchestrator** or `.\scripts\refresh-ecops-token.ps1 -Username admin -Password 'Password1!'` |
+| Check auth before checkout | `Invoke-RestMethod http://localhost:8000/health/upstreams` — expect `ecops.auth_ok: true` |

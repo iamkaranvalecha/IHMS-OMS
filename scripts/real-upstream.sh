@@ -105,7 +105,16 @@ echo "    Catalog: IHMS GET ${IHMS_CHECK_PATH}"
 echo "    UI:      http://localhost:5180"
 echo "    API:     http://localhost:8000/catalog"
 if [[ "$DETACHED" == "1" ]]; then
-  docker compose up orchestrator ui --no-deps --build -d --wait
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  if [[ -z "${ECOPS_BEARER_TOKEN:-}" ]]; then
+    echo "ERROR: ECOPS_BEARER_TOKEN is empty after token fetch" >&2
+    exit 1
+  fi
+  echo "==> ECOPS_BEARER_TOKEN loaded (${#ECOPS_BEARER_TOKEN} chars)"
+  docker compose up orchestrator ui --no-deps --build --force-recreate -d --wait
   ORCHESTRATOR_PORT="${ORCHESTRATOR_PORT:-8000}"
   UI_PORT="${UI_PORT:-5180}"
   for i in $(seq 1 60); do
@@ -118,5 +127,13 @@ if [[ "$DETACHED" == "1" ]]; then
   done
   echo "==> Stack ready (real upstream, background)"
 else
-  docker compose up orchestrator ui --no-deps --build
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  if [[ -z "${ECOPS_BEARER_TOKEN:-}" ]]; then
+    echo "ERROR: ECOPS_BEARER_TOKEN is empty after token fetch" >&2
+    exit 1
+  fi
+  docker compose up orchestrator ui --no-deps --build --force-recreate
 fi
