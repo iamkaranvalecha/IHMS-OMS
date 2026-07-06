@@ -53,15 +53,23 @@ _ensure_env_var ORCHESTRATOR_PORT 8000
 _ensure_env_var UI_PORT 5180
 _ensure_env_var ECOPS_MAPPING_PATH /app/catalog/ecops-mapping.json
 
-echo "==> Checking KB-IHMS catalog at http://localhost:5000/api/products"
-if ! curl -fsS http://localhost:5000/api/products >/dev/null; then
+echo "==> Checking KB-IHMS catalog at http://localhost:5000"
+IHMS_CHECK_PATH=""
+for path in /api/products /api/inventory; do
+  if curl -fsS "http://localhost:5000${path}" >/dev/null 2>&1; then
+    IHMS_CHECK_PATH="$path"
+    break
+  fi
+done
+if [[ -z "$IHMS_CHECK_PATH" ]]; then
   echo "ERROR: KB-IHMS not reachable on http://localhost:5000 — start it first." >&2
   exit 1
 fi
+echo "    OK: GET http://localhost:5000${IHMS_CHECK_PATH}"
 
 echo "==> Checking orchestrator can reach IHMS from Docker (host.docker.internal:5000)"
 if ! docker run --rm --add-host=host.docker.internal:host-gateway curlimages/curl:8.12.1 \
-  -fsS --connect-timeout 3 http://host.docker.internal:5000/api/products >/dev/null 2>&1; then
+  -fsS --connect-timeout 3 "http://host.docker.internal:5000${IHMS_CHECK_PATH}" >/dev/null 2>&1; then
   echo "WARN: host.docker.internal:5000 not reachable from a test container." >&2
   echo "      On Linux ensure docker compose extra_hosts includes host.docker.internal." >&2
   echo "      If orchestrator runs on the host (not Docker), use localhost URLs instead." >&2
@@ -90,7 +98,7 @@ else
 fi
 
 echo "==> Starting orchestrator + UI (real upstream mode)"
-echo "    Catalog: IHMS GET /api/products"
+echo "    Catalog: IHMS GET ${IHMS_CHECK_PATH}"
 echo "    UI:      http://localhost:5180"
 echo "    API:     http://localhost:8000/catalog"
 docker compose up orchestrator ui --no-deps --build

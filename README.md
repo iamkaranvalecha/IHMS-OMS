@@ -16,6 +16,8 @@ From the repository root:
 docker compose up --build
 ```
 
+**Windows:** run VS Code task **Docker: Start full mock stack**, or `.\scripts\full-stack.ps1` (see [docs/DOCKER.md](docs/DOCKER.md)).
+
 | Service | URL |
 |---------|-----|
 | Checkout UI | http://localhost:5180 |

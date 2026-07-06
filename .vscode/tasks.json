@@ -1,0 +1,264 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "kbIhmsPath",
+      "type": "promptString",
+      "description": "Path to KB-IHMS repo (sibling folder)",
+      "default": "../KB-IHMS"
+    },
+    {
+      "id": "ecOpsPath",
+      "type": "promptString",
+      "description": "Path to EC-OPS repo (sibling folder)",
+      "default": "../EC-OPS"
+    },
+    {
+      "id": "ecopsUsername",
+      "type": "promptString",
+      "description": "EC-OPS username",
+      "default": "admin"
+    },
+    {
+      "id": "ecopsPassword",
+      "type": "promptString",
+      "description": "EC-OPS password",
+      "default": "Password1!"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Docker: Start full mock stack",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/full-stack.ps1"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Start mock stack (foreground)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/mock-stack.ps1"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Stop stack",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/stop-stack.ps1"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Stop stack (remove volumes)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/stop-stack.ps1",
+        "-Volumes"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "EC-OPS: Fetch bearer token",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/ecops-token.ps1'"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Check real upstreams",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/real-upstream.ps1",
+        "-Check"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Start real upstream orchestrator",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$env:ECOPS_USERNAME='${input:ecopsUsername}'; $env:ECOPS_PASSWORD='${input:ecopsPassword}'; & '${workspaceFolder}/scripts/real-upstream.ps1'"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "KB-IHMS: Start upstream Docker",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Set-Location '${workspaceFolder}/${input:kbIhmsPath}'; Write-Host '==> Starting KB-IHMS at http://localhost:5000'; docker compose up -d --build"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "EC-OPS: Start upstream Docker",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Set-Location '${workspaceFolder}/${input:ecOpsPath}'; Write-Host '==> Starting EC-OPS at http://localhost:8002'; docker compose up -d --build"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Real stack: Start all upstreams + orchestrator",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "KB-IHMS: Start upstream Docker",
+        "EC-OPS: Start upstream Docker",
+        "Docker: Start real upstream orchestrator"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Open: Checkout UI",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Start-Process 'http://localhost:5180'"
+      ],
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Health: Orchestrator upstreams",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Invoke-RestMethod 'http://localhost:8000/health/upstreams' | ConvertTo-Json -Depth 6"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Health: Catalog preview",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Invoke-RestMethod 'http://localhost:8000/catalog' | ConvertTo-Json -Depth 4"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Start stack with Prometheus",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "& '${workspaceFolder}/scripts/mock-stack.ps1' -Check; docker compose --profile obs up --build --wait"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
