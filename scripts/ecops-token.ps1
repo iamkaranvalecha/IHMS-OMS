@@ -31,7 +31,7 @@ if ($Help) {
 $ecopsUrl = $env:ECOPS_TOKEN_URL
 if (-not $ecopsUrl) {
     $port = if ($env:ECOPS_PORT) { $env:ECOPS_PORT } else { "8002" }
-    $base = if ($env:ECOPS_BASE_URL) { $env:ECOPS_BASE_URL } else { "http://localhost:$port" }
+    $base = if ($env:ECOPS_BASE_URL) { $env:ECOPS_BASE_URL } else { "http://host.docker.internal:$port" }
     $ecopsUrl = Get-HostReachableUrl -Url $base
 }
 

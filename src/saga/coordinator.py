@@ -644,7 +644,7 @@ class SagaCoordinator:
                     f"Only {available} units available for {line_item.sku}",
                     detail=(
                         f"Requested {line_item.quantity} of {line_item.sku}, "
-                        f"available {available}"
+                        f"but only {available} available after existing holds"
                     ),
                 )
 

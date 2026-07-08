@@ -73,6 +73,27 @@ describe("CartPanel", () => {
     expect(onCheckout).toHaveBeenCalledWith([{ ...unknownStockCart[0], quantity: 4, maxQuantity: 4 }]);
   });
 
+  it("blocks checkout when quantity exceeds available stock", () => {
+    const onCheckout = vi.fn();
+
+    render(
+      <CartPanel
+        cart={[{ ...cart[0], quantity: 12, maxQuantity: 10 }]}
+        customerName="Jane Doe"
+        onCustomerNameChange={vi.fn()}
+        onCartChange={vi.fn()}
+        onRemove={vi.fn()}
+        onCheckout={onCheckout}
+        checkoutPending={false}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Place order" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("alert").textContent).toMatch(/only 10 available/);
+    fireEvent.click(screen.getByRole("button", { name: "Place order" }));
+    expect(onCheckout).not.toHaveBeenCalled();
+  });
+
   it("preserves in-progress quantity input when unrelated cart lines change", () => {
     const onCartChange = vi.fn();
 

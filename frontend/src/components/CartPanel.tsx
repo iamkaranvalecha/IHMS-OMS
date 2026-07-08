@@ -8,6 +8,7 @@ import {
 } from "@/cart";
 import type { CartItem } from "@/api/types";
 import { formatCurrency } from "@/api/normalize";
+import { checkoutBlockReason } from "@/inventory";
 
 interface CartPanelProps {
   cart: CartItem[];
@@ -61,6 +62,7 @@ export function CartPanel({
   }
 
   const displayLines = resolveDisplayLines(cart, quantityInputs);
+  const checkoutBlocked = checkoutBlockReason(cart, quantityInputs);
 
   const commitLineQuantity = (line: CartItem): CartItem => {
     const parsed = Number.parseInt(quantityInputs[line.sku] ?? String(line.quantity), 10);
@@ -140,7 +142,9 @@ export function CartPanel({
                 ? "Stock level unknown — hold may fail if insufficient"
                 : line.maxQuantity === 0
                   ? "Out of stock"
-                  : `Up to ${line.maxQuantity} available`}
+                  : line.quantity > line.maxQuantity
+                    ? `Only ${line.maxQuantity} available`
+                    : `Up to ${line.maxQuantity} available`}
             </p>
             <button
               type="button"
@@ -166,6 +170,11 @@ export function CartPanel({
           placeholder="Guest"
         />
       </label>
+      {checkoutBlocked ? (
+        <p className="error" role="alert">
+          {checkoutBlocked}
+        </p>
+      ) : null}
       <button
         type="button"
         className="primary"
@@ -173,7 +182,7 @@ export function CartPanel({
           disabled ||
           checkoutPending ||
           displayLines.length === 0 ||
-          displayLines.some((line) => !line.stockUnknown && line.maxQuantity === 0)
+          checkoutBlocked !== null
         }
         onClick={() => {
           onCheckout(commitAllLines());

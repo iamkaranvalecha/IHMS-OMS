@@ -5,6 +5,7 @@ import { formatCurrency } from "@/api/normalize";
 import { isApiError } from "@/api/types";
 import type { CartItem, ObservabilityIds } from "@/api/types";
 import { addToCart, removeFromCart, syncCartWithCatalog } from "@/cart";
+import { checkoutBlockReason } from "@/inventory";
 import { CartPanel } from "@/components/CartPanel";
 import { CatalogGrid } from "@/components/CatalogGrid";
 import { DevObservabilityPanel } from "@/components/DevObservabilityPanel";
@@ -92,12 +93,19 @@ export function App() {
     if (checkoutCart.length === 0) {
       return;
     }
+    const syncedCart = syncCartWithCatalog(checkoutCart, products);
+    const blockReason = checkoutBlockReason(syncedCart);
+    if (blockReason) {
+      setError(blockReason);
+      setCart(syncedCart);
+      return;
+    }
     setError(null);
     const idempotencyKey = idempotencyKeyRef.current ?? newIdempotencyKey();
     idempotencyKeyRef.current = idempotencyKey;
     try {
       const result = await placeOrder.mutateAsync({
-        cart: checkoutCart,
+        cart: syncedCart,
         customerName: customerName.trim() || undefined,
         idempotencyKey,
         sessionId: existingSessionId ?? undefined,

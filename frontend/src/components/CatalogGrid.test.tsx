@@ -25,7 +25,7 @@ describe("CatalogGrid", () => {
       <CatalogGrid products={[productWithUnknownStock]} cart={[]} onAdd={onAdd} />,
     );
 
-    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Quantity for Widget"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
 
     expect(onAdd).toHaveBeenCalledWith({
@@ -36,5 +36,31 @@ describe("CatalogGrid", () => {
       maxQuantity: 3,
       stockUnknown: true,
     });
+  });
+
+  it("shows on-hold quantity from cart", () => {
+    render(
+      <CatalogGrid
+        products={[
+          {
+            ...productWithUnknownStock,
+            availableQuantity: 10,
+          },
+        ]}
+        cart={[
+          {
+            sku: "WIDGET-001",
+            name: "Widget",
+            unitPrice: 19.99,
+            quantity: 4,
+            maxQuantity: 10,
+          },
+        ]}
+        onAdd={vi.fn()}
+      />,
+    );
+
+    const onHoldCell = screen.getByRole("cell", { name: "4" });
+    expect(onHoldCell).toBeDefined();
   });
 });
